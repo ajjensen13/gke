@@ -30,6 +30,6 @@ func init() {
 }
 
 type Config struct {
-	ProjectId       string
-	CommonLogLabels map[string]string
+	ProjectId       string            `yaml:"projectId"`
+	CommonLogLabels map[string]string `yaml:"commonLogLabels"`
 }

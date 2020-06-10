@@ -17,9 +17,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 package gke
 
 import (
-	"cloud.google.com/go/logging"
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 )
@@ -43,8 +41,8 @@ func init() {
 		}
 		defer client.Close()
 
-		logger := client.Logger("gke-signal-handler")
-		logger.Log(logging.Entry{Severity: logging.Notice, Payload: fmt.Sprintf("%v signal recieved", s)})
+		logger := client.Logger(os.Args[0] + "-signal-handler")
+		logger.Noticef("signal received: %v", s)
 
 		pkgAliveCancel()
 	}()
