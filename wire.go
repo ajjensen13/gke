@@ -70,11 +70,11 @@ type LogClient struct {
 	*logging.Client
 }
 
-func (l *LogClient) Logger(logID string, opts ...logging.LoggerOption) *logging.Logger {
-	return l.Client.Logger(
+func (l *LogClient) Logger(logID string, opts ...logging.LoggerOption) *Logger {
+	return &Logger{l.Client.Logger(
 		logID,
 		append(l.opts, opts...)...,
-	)
+	)}
 }
 
 type Logger struct {
