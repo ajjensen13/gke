@@ -22,6 +22,7 @@ package gke
 import (
 	"cloud.google.com/go/logging"
 	"context"
+	"fmt"
 	"github.com/google/wire"
 	"log"
 )
@@ -74,4 +75,48 @@ func (l *LogClient) Logger(logID string, opts ...logging.LoggerOption) *logging.
 		logID,
 		append(l.opts, opts...)...,
 	)
+}
+
+type Logger struct {
+	*logging.Logger
+}
+
+type fmtPayload struct {
+	Message string
+	Args    []interface{}
+}
+
+type errPayload struct {
+	Message string
+	Err     error
+}
+
+func (l *Logger) Logf(severity logging.Severity, format string, args ...interface{}) {
+	l.Log(logging.Entry{Severity: severity, Payload: fmtPayload{
+		Message: fmt.Sprintf(format, args...),
+		Args:    args,
+	}})
+}
+
+func (l *Logger) Infof(format string, args ...interface{}) {
+	l.Logf(logging.Info, format, args...)
+}
+
+func (l *Logger) Noticef(format string, args ...interface{}) {
+	l.Logf(logging.Notice, format, args...)
+}
+
+func (l *Logger) Warnf(format string, args ...interface{}) {
+	l.Logf(logging.Warning, format, args...)
+}
+
+func (l *Logger) Errorf(format string, args ...interface{}) {
+	l.Logf(logging.Error, format, args...)
+}
+
+func (l *Logger) Error(err error) {
+	l.Log(logging.Entry{Severity: logging.Error, Payload: errPayload{
+		Message: fmt.Sprintf("%v", err),
+		Err:     err,
+	}})
 }
