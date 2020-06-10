@@ -125,7 +125,31 @@ func (l *Logger) Errorf(format string, args ...interface{}) string {
 	return l.Logf(logging.Error, format, args...)
 }
 
-func (l *Logger) Error(err error) error {
+func (l *Logger) InfoErr(err error) error {
+	l.Log(logging.Entry{Severity: logging.Info, Payload: errPayload{
+		Message: fmt.Sprintf("%v", err),
+		Err:     err,
+	}})
+	return err
+}
+
+func (l *Logger) NoticeErr(err error) error {
+	l.Log(logging.Entry{Severity: logging.Notice, Payload: errPayload{
+		Message: fmt.Sprintf("%v", err),
+		Err:     err,
+	}})
+	return err
+}
+
+func (l *Logger) WarnErr(err error) error {
+	l.Log(logging.Entry{Severity: logging.Warning, Payload: errPayload{
+		Message: fmt.Sprintf("%v", err),
+		Err:     err,
+	}})
+	return err
+}
+
+func (l *Logger) ErrorErr(err error) error {
 	l.Log(logging.Entry{Severity: logging.Error, Payload: errPayload{
 		Message: fmt.Sprintf("%v", err),
 		Err:     err,
