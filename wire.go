@@ -71,13 +71,22 @@ type LogClient struct {
 }
 
 func (l *LogClient) Logger(logID string, opts ...logging.LoggerOption) *Logger {
-	return &Logger{l.Client.Logger(
-		logID,
-		append(l.opts, opts...)...,
-	)}
+	os := append(l.opts, opts...)
+	return &Logger{
+		logId:  logID,
+		client: l,
+		opts:   os,
+		Logger: l.Client.Logger(
+			logID,
+			os...,
+		),
+	}
 }
 
 type Logger struct {
+	logId  string
+	client *LogClient
+	opts   []logging.LoggerOption
 	*logging.Logger
 }
 
@@ -119,4 +128,11 @@ func (l *Logger) Error(err error) {
 		Message: fmt.Sprintf("%v", err),
 		Err:     err,
 	}})
+}
+
+func (l *Logger) Child(suffix string, opts ...logging.LoggerOption) *Logger {
+	return l.client.Logger(
+		l.logId+"-"+suffix,
+		append(l.opts, opts...)...,
+	)
 }
