@@ -69,7 +69,7 @@ type LogParentId string
 
 func NewLogParentId() LogParentId {
 	if OnGCE() {
-		return LogParentId("project/" + ProjectID())
+		return LogParentId("projects/" + ProjectID())
 	}
 	return LogParentId("")
 }
@@ -116,12 +116,6 @@ func provideServer(lg Logger, handler http.Handler) *http.Server {
 			return context.WithValue(ctx, RequestContextKey, uuid.New().String())
 		},
 	}
-}
-
-func init() {
-	log.Printf("OnGCE(): %v", OnGCE())
-	log.Printf("ProjectID(): %v", ProjectID())
-	log.Printf("InstanceName(): %v", InstanceName())
 }
 
 func ProjectID() string {
