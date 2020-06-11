@@ -1,5 +1,3 @@
-// +build wireinject
-
 /*
 Copyright © 2020 A. Jensen <jensen.aaro@gmail.com>
 
@@ -16,53 +14,29 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-
 package gke
 
 import (
-	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/logging"
-	"cloud.google.com/go/storage"
 	"context"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/google/wire"
 	"log"
-	"net"
-	"net/http"
 	"os"
 	"path"
 	"runtime/debug"
-	"time"
 )
 
 var (
-	LogGke bool = true
-	LogStd bool = true
+	LogGke bool
+	LogStd bool
 )
 
-func NewLogClient(ctx context.Context) (LogClient, func(), error) {
-	panic(wire.Build(NewLogClientWithOptions, NewLogParentId, wire.Value([]logging.LoggerOption{})))
-}
-
-func NewLogClientWithOptions(ctx context.Context, parent LogParentId, opts ...logging.LoggerOption) (LogClient, func(), error) {
-	panic(wire.Build(provideLoggingClient, provideLogClient))
-}
-
-func NewLogger(logc LogClient) (Logger, func(), error) {
-	panic(wire.Build(NewLoggerWithOptions, NewLogId, wire.Value([]logging.LoggerOption{})))
-}
-
-func NewLoggerWithOptions(logc LogClient, logId LogId, opts ...logging.LoggerOption) (Logger, func(), error) {
-	panic(wire.Build(provideLogger))
-}
-
-func NewStorageClient(ctx context.Context) (StorageClient, func(), error) {
-	panic(wire.Build(provideStorageClient))
-}
-
-func NewServer(ctx context.Context, handler http.Handler, lg Logger) (*http.Server, error) {
-	panic(wire.Build(provideServer))
+func init() {
+	if OnGCE() {
+		LogGke = true
+		return
+	}
+	LogStd = true
 }
 
 type LogParentId string
@@ -93,43 +67,6 @@ func NewLogId() LogId {
 func provideLogger(logc LogClient, logId LogId) (Logger, func()) {
 	l := logc.Logger(string(logId))
 	return l, func() { _ = l.Flush() }
-}
-
-type requestContextKey string
-
-const RequestContextKey = requestContextKey(`gkeRequestContextKey`)
-
-func provideServer(lg Logger, handler http.Handler) *http.Server {
-	return &http.Server{
-		Handler:           handler,
-		ReadTimeout:       time.Second * 30,
-		ReadHeaderTimeout: time.Second * 5,
-		WriteTimeout:      time.Second * 30,
-		IdleTimeout:       time.Second * 60,
-		MaxHeaderBytes:    http.DefaultMaxHeaderBytes,
-		ErrorLog:          lg.StandardLogger(logging.Error),
-		BaseContext: func(_ net.Listener) (ctx context.Context) {
-			ctx, _ = Alive()
-			return
-		},
-		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
-			return context.WithValue(ctx, RequestContextKey, uuid.New().String())
-		},
-	}
-}
-
-func ProjectID() string {
-	id, _ := metadata.ProjectID()
-	return id
-}
-
-func InstanceName() string {
-	name, _ := metadata.InstanceName()
-	return name
-}
-
-func OnGCE() bool {
-	return metadata.OnGCE()
 }
 
 func provideLoggingClient(ctx context.Context, parent LogParentId) (*logging.Client, func(), error) {
@@ -258,21 +195,4 @@ type Logger interface {
 	WarnErr(err error) error
 	ErrorErr(err error) error
 	Flush() error
-}
-
-func provideStorageClient(ctx context.Context) (StorageClient, func(), error) {
-	result, err := storage.NewClient(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	return result, func() { _ = result.Close() }, nil
-}
-
-type StorageClient interface {
-	HMACKeyHandle(projectID, accessID string) *storage.HMACKeyHandle
-	CreateHMACKey(ctx context.Context, projectID, serviceAccountEmail string, opts ...storage.HMACKeyOption) (*storage.HMACKey, error)
-	ListHMACKeys(ctx context.Context, projectID string, opts ...storage.HMACKeyOption) *storage.HMACKeysIterator
-	ServiceAccount(ctx context.Context, projectID string) (string, error)
-	Bucket(name string) *storage.BucketHandle
-	Buckets(ctx context.Context, projectID string) *storage.BucketIterator
 }
