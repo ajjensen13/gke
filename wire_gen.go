@@ -36,7 +36,7 @@ var (
 
 // wire.go:
 
-func NewServer(lg *logging.Logger, handler http.Handler) *http.Server {
+func NewServer(lg *Logger, handler http.Handler) *http.Server {
 	return &http.Server{
 		Handler:           handler,
 		ReadTimeout:       time.Second * 30,
