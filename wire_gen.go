@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/ajjensen13/config"
+	"github.com/google/uuid"
 	"log"
 	"net"
 	"net/http"
@@ -144,6 +145,10 @@ func provideLogger(logc LogClient, logId LogId, opt ...logging.LoggerOption) (Lo
 	return l, func() { _ = l.Flush() }
 }
 
+type requestContextKey string
+
+const RequestContextKey = requestContextKey(`gkeRequestContextKey`)
+
 func provideServer(lg Logger, handler http.Handler) *http.Server {
 	return &http.Server{
 		Handler:           handler,
@@ -156,6 +161,9 @@ func provideServer(lg Logger, handler http.Handler) *http.Server {
 		BaseContext: func(_ net.Listener) (ctx context.Context) {
 			ctx, _ = Alive()
 			return
+		},
+		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+			return context.WithValue(ctx, RequestContextKey, uuid.New().String())
 		},
 	}
 }
