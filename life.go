@@ -35,11 +35,11 @@ func init() {
 		s := <-c
 		signal.Stop(c)
 
-		client, err := NewLogClient(context.Background())
+		client, cleanup, err := NewLogClient(context.Background())
 		if err != nil {
 			panic(err)
 		}
-		defer client.Close()
+		defer cleanup()
 
 		logger := client.Logger(os.Args[0] + "-signal-handler")
 		logger.Noticef("signal received: %v", s)
