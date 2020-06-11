@@ -10,6 +10,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
+	"net/http"
+	"time"
 )
 
 // Injectors from wire.go:
@@ -32,6 +35,22 @@ var (
 )
 
 // wire.go:
+
+func NewServer(lg *logging.Logger, handler http.Handler) *http.Server {
+	return &http.Server{
+		Handler:           handler,
+		ReadTimeout:       time.Second * 30,
+		ReadHeaderTimeout: time.Second * 5,
+		WriteTimeout:      time.Second * 30,
+		IdleTimeout:       time.Second * 60,
+		MaxHeaderBytes:    http.DefaultMaxHeaderBytes,
+		ErrorLog:          lg.StandardLogger(logging.Error),
+		BaseContext: func(_ net.Listener) (ctx context.Context) {
+			ctx, _ = Alive()
+			return
+		},
+	}
+}
 
 func provideLoggingClient(ctx context.Context, config *Config) (*logging.Client, error) {
 	result, err := logging.NewClient(ctx, config.ProjectId)
