@@ -36,6 +36,11 @@ import (
 	"time"
 )
 
+var (
+	LogGke bool = true
+	LogStd bool = true
+)
+
 func NewLogClient(ctx context.Context) (LogClient, func(), error) {
 	panic(wire.Build(provideConfig, NewLogClientWithOptions, provideLogParentId, wire.Value([]logging.LoggerOption{})))
 }
@@ -200,10 +205,15 @@ type errPayload struct {
 
 func (l *logger) Logf(severity logging.Severity, format string, args ...interface{}) string {
 	message := fmt.Sprintf(format, args...)
-	l.Log(logging.Entry{Severity: severity, Payload: fmtPayload{
-		Message: message,
-		Args:    args,
-	}})
+	if LogGke {
+		l.Log(logging.Entry{Severity: severity, Payload: fmtPayload{
+			Message: message,
+			Args:    args,
+		}})
+	}
+	if LogStd {
+		log.Printf("%v %s", severity, message)
+	}
 	return message
 }
 
@@ -223,36 +233,33 @@ func (l *logger) Errorf(format string, args ...interface{}) string {
 	return l.Logf(logging.Error, format, args...)
 }
 
-func (l *logger) InfoErr(err error) error {
-	l.Log(logging.Entry{Severity: logging.Info, Payload: errPayload{
-		Message: fmt.Sprintf("%v", err),
-		Err:     err,
-	}})
+func (l *logger) LogErr(severity logging.Severity, err error) error {
+	if LogGke {
+		l.Log(logging.Entry{Severity: severity, Payload: errPayload{
+			Message: fmt.Sprintf("%v", err),
+			Err:     err,
+		}})
+	}
+	if LogStd {
+		log.Printf("%v %v", severity, err)
+	}
 	return err
+}
+
+func (l *logger) InfoErr(err error) error {
+	return l.LogErr(logging.Info, err)
 }
 
 func (l *logger) NoticeErr(err error) error {
-	l.Log(logging.Entry{Severity: logging.Notice, Payload: errPayload{
-		Message: fmt.Sprintf("%v", err),
-		Err:     err,
-	}})
-	return err
+	return l.LogErr(logging.Notice, err)
 }
 
 func (l *logger) WarnErr(err error) error {
-	l.Log(logging.Entry{Severity: logging.Warning, Payload: errPayload{
-		Message: fmt.Sprintf("%v", err),
-		Err:     err,
-	}})
-	return err
+	return l.LogErr(logging.Warning, err)
 }
 
 func (l *logger) ErrorErr(err error) error {
-	l.Log(logging.Entry{Severity: logging.Error, Payload: errPayload{
-		Message: fmt.Sprintf("%v", err),
-		Err:     err,
-	}})
-	return err
+	return l.LogErr(logging.Error, err)
 }
 
 type LogClient interface {
