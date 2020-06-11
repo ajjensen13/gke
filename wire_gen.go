@@ -96,22 +96,9 @@ func NewStorageClient(ctx context.Context) (StorageClient, func(), error) {
 	}, nil
 }
 
-func NewServer(ctx context.Context, handler http.Handler, opts ...logging.LoggerOption) (*http.Server, func(), error) {
-	gkeLogClient, cleanup, err := NewLogClient(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	gkeLogger, cleanup2, err := NewLogger(gkeLogClient)
-	if err != nil {
-		cleanup()
-		return nil, nil, err
-	}
-	server, cleanup3 := provideServer(gkeLogger, handler)
-	return server, func() {
-		cleanup3()
-		cleanup2()
-		cleanup()
-	}, nil
+func NewServer(ctx context.Context, handler http.Handler, lg Logger) (*http.Server, error) {
+	server := provideServer(lg, handler)
+	return server, nil
 }
 
 func NewLogParentId() (LogParentId, error) {
@@ -152,8 +139,8 @@ func provideLogger(logc LogClient, logId LogId, opt ...logging.LoggerOption) (Lo
 	return l, func() { _ = l.Flush() }
 }
 
-func provideServer(lg Logger, handler http.Handler) (*http.Server, func()) {
-	srv := http.Server{
+func provideServer(lg Logger, handler http.Handler) *http.Server {
+	return &http.Server{
 		Handler:           handler,
 		ReadTimeout:       time.Second * 30,
 		ReadHeaderTimeout: time.Second * 5,
@@ -166,7 +153,6 @@ func provideServer(lg Logger, handler http.Handler) (*http.Server, func()) {
 			return
 		},
 	}
-	return &srv, func() { _ = srv.Shutdown(context.TODO()) }
 }
 
 var (
@@ -231,13 +217,14 @@ type logClient struct {
 }
 
 func (l *logClient) Logger(logID string, opts ...logging.LoggerOption) Logger {
-	os2 := append(l.opts, opts...)
+	copyOpts := append(l.opts, opts...)
 	return &logger{
 		logId:  logID,
 		client: l,
-		opts:   os2,
+		opts:   copyOpts,
 		Logger: l.Client.Logger(
-			logID, os2...,
+			logID,
+			copyOpts...,
 		),
 	}
 }

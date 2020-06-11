@@ -56,8 +56,8 @@ func NewStorageClient(ctx context.Context) (StorageClient, func(), error) {
 	panic(wire.Build(provideStorageClient))
 }
 
-func NewServer(ctx context.Context, handler http.Handler, opts ...logging.LoggerOption) (*http.Server, func(), error) {
-	panic(wire.Build(provideServer, NewLogClient, NewLogger))
+func NewServer(ctx context.Context, handler http.Handler, lg Logger) (*http.Server, error) {
+	panic(wire.Build(provideServer))
 }
 
 type LogParentId string
@@ -91,8 +91,8 @@ func provideLogger(logc LogClient, logId LogId, opt ...logging.LoggerOption) (Lo
 	return l, func() { _ = l.Flush() }
 }
 
-func provideServer(lg Logger, handler http.Handler) (*http.Server, func()) {
-	srv := http.Server{
+func provideServer(lg Logger, handler http.Handler) *http.Server {
+	return &http.Server{
 		Handler:           handler,
 		ReadTimeout:       time.Second * 30,
 		ReadHeaderTimeout: time.Second * 5,
@@ -105,7 +105,6 @@ func provideServer(lg Logger, handler http.Handler) (*http.Server, func()) {
 			return
 		},
 	}
-	return &srv, func() { _ = srv.Shutdown(context.TODO()) }
 }
 
 var (
