@@ -20,11 +20,11 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 package gke
 
 import (
+	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/logging"
 	"cloud.google.com/go/storage"
 	"context"
 	"fmt"
-	"github.com/ajjensen13/config"
 	"github.com/google/uuid"
 	"github.com/google/wire"
 	"log"
@@ -33,7 +33,6 @@ import (
 	"os"
 	"path"
 	"runtime/debug"
-	"sync"
 	"time"
 )
 
@@ -43,11 +42,11 @@ var (
 )
 
 func NewLogClient(ctx context.Context) (LogClient, func(), error) {
-	panic(wire.Build(provideConfig, NewLogClientWithOptions, provideLogParentId, wire.Value([]logging.LoggerOption{})))
+	panic(wire.Build(NewLogClientWithOptions, NewLogParentId, wire.Value([]logging.LoggerOption{})))
 }
 
 func NewLogClientWithOptions(ctx context.Context, parent LogParentId, opts ...logging.LoggerOption) (LogClient, func(), error) {
-	panic(wire.Build(provideConfig, provideLoggingClient, provideLogClient))
+	panic(wire.Build(provideLoggingClient, provideLogClient))
 }
 
 func NewLogger(logc LogClient) (Logger, func(), error) {
@@ -68,12 +67,11 @@ func NewServer(ctx context.Context, handler http.Handler, lg Logger) (*http.Serv
 
 type LogParentId string
 
-func NewLogParentId() (LogParentId, error) {
-	panic(wire.Build(provideConfig, provideLogParentId))
-}
-
-func provideLogParentId(cfg *Config) LogParentId {
-	return LogParentId(cfg.ProjectId)
+func NewLogParentId() LogParentId {
+	if OnGCE() {
+		return LogParentId("project/" + ProjectID())
+	}
+	return LogParentId("")
 }
 
 type LogId string
@@ -92,8 +90,8 @@ func NewLogId() LogId {
 	return LogId(os.Args[0])
 }
 
-func provideLogger(logc LogClient, logId LogId, opt ...logging.LoggerOption) (Logger, func()) {
-	l := logc.Logger(string(logId), opt...)
+func provideLogger(logc LogClient, logId LogId) (Logger, func()) {
+	l := logc.Logger(string(logId))
 	return l, func() { _ = l.Flush() }
 }
 
@@ -120,27 +118,18 @@ func provideServer(lg Logger, handler http.Handler) *http.Server {
 	}
 }
 
-var (
-	pkgConfigOnce sync.Once
-	pkgConfig     *Config
-	pkgConfigErr  error
-)
-
-type Config struct {
-	ProjectId       string            `yaml:"projectId"`
-	CommonLogLabels map[string]string `yaml:"commonLogLabels"`
+func ProjectID() string {
+	id, _ := metadata.ProjectID()
+	return id
 }
 
-func provideConfig() (*Config, error) {
-	pkgConfigOnce.Do(func() {
-		var c Config
-		pkgConfigErr = config.InterfaceYaml("gke.yaml", &c)
-		if pkgConfigErr != nil {
-			return
-		}
-		pkgConfig = &c
-	})
-	return pkgConfig, pkgConfigErr
+func InstanceName() string {
+	name, _ := metadata.InstanceName()
+	return name
+}
+
+func OnGCE() bool {
+	return metadata.OnGCE()
 }
 
 func provideLoggingClient(ctx context.Context, parent LogParentId) (*logging.Client, func(), error) {
@@ -161,43 +150,25 @@ func provideLoggingClient(ctx context.Context, parent LogParentId) (*logging.Cli
 	return result, func() { _ = result.Close() }, nil
 }
 
-func provideLogClient(client *logging.Client, config *Config, opts []logging.LoggerOption) (LogClient, error) {
-	var defaultOpts []logging.LoggerOption
-	if config.CommonLogLabels != nil && len(config.CommonLogLabels) > 0 {
-		defaultOpts = append(defaultOpts, logging.CommonLabels(config.CommonLogLabels))
-	}
-	if len(opts) > 0 {
-		defaultOpts = append(defaultOpts, opts...)
-	}
-
-	return &logClient{
-		Client: client,
-		opts:   defaultOpts,
-	}, nil
+func provideLogClient(client *logging.Client) (LogClient, error) {
+	return &logClient{Client: client}, nil
 }
 
 type logClient struct {
-	opts []logging.LoggerOption
 	*logging.Client
 }
 
-func (l *logClient) Logger(logID string, opts ...logging.LoggerOption) Logger {
-	copyOpts := append(l.opts, opts...)
+func (l *logClient) Logger(logID string) Logger {
 	return &logger{
 		logId:  logID,
 		client: l,
-		opts:   copyOpts,
-		Logger: l.Client.Logger(
-			logID,
-			copyOpts...,
-		),
+		Logger: l.Client.Logger(logID),
 	}
 }
 
 type logger struct {
 	logId  string
 	client *logClient
-	opts   []logging.LoggerOption
 	*logging.Logger
 }
 
@@ -271,7 +242,7 @@ func (l *logger) ErrorErr(err error) error {
 }
 
 type LogClient interface {
-	Logger(logID string, opts ...logging.LoggerOption) Logger
+	Logger(logID string) Logger
 }
 
 type Logger interface {
