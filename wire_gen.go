@@ -152,6 +152,12 @@ func provideServer(lg Logger, handler http.Handler) *http.Server {
 	}
 }
 
+func init() {
+	log.Printf("OnGCE(): %v", OnGCE())
+	log.Printf("ProjectID(): %v", ProjectID())
+	log.Printf("InstanceName(): %v", InstanceName())
+}
+
 func ProjectID() string {
 	id, _ := metadata.ProjectID()
 	return id
