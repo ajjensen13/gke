@@ -27,6 +27,14 @@ import (
 )
 
 var (
+	// LogThreshold is the minimum severity to output
+	LogThreshold = logging.Debug
+	// LogThresholdError is the minimum severity to output to stdout (rather than stderr).
+	// This does not affect StackDriver logging
+	LogThresholdError = logging.Error
+)
+
+var (
 	LogGke bool
 	LogStd bool
 )
@@ -42,7 +50,7 @@ func init() {
 type LogParentId string
 
 func NewLogParentId() LogParentId {
-	if OnGCE() {
+	if LogGke {
 		return LogParentId("projects/" + ProjectID())
 	}
 	return LogParentId("")
@@ -51,17 +59,20 @@ func NewLogParentId() LogParentId {
 type LogId string
 
 func NewLogId() LogId {
-	result, ok := os.LookupEnv("GKE_LOG_ID")
-	if ok {
-		return LogId(result)
-	}
+	if LogGke {
+		result, ok := os.LookupEnv("GKE_LOG_ID")
+		if ok {
+			return LogId(result)
+		}
 
-	info, ok := debug.ReadBuildInfo()
-	if ok {
-		return LogId(path.Base(info.Path))
-	}
+		info, ok := debug.ReadBuildInfo()
+		if ok {
+			return LogId(path.Base(info.Path))
+		}
 
-	return LogId(os.Args[0])
+		return LogId(os.Args[0])
+	}
+	return LogId("")
 }
 
 func provideLogger(logc LogClient, logId LogId) (Logger, func()) {
@@ -70,6 +81,10 @@ func provideLogger(logc LogClient, logId LogId) (Logger, func()) {
 }
 
 func provideLoggingClient(ctx context.Context, parent LogParentId) (*logging.Client, func(), error) {
+	if !LogGke {
+		return nil, func() {}, nil
+	}
+
 	result, err := logging.NewClient(ctx, string(parent))
 	if err != nil {
 		return nil, nil, err
@@ -100,6 +115,8 @@ func (l *logClient) Logger(logID string) Logger {
 		logId:  logID,
 		client: l,
 		Logger: l.Client.Logger(logID),
+		stdout: log.New(os.Stdout, log.Prefix(), log.Flags()),
+		stderr: log.New(os.Stderr, log.Prefix(), log.Flags()),
 	}
 }
 
@@ -107,28 +124,27 @@ type logger struct {
 	logId  string
 	client *logClient
 	*logging.Logger
-}
-
-type fmtPayload struct {
-	Message string
-	Args    []interface{}
-}
-
-type errPayload struct {
-	Message string
-	Err     error
+	stdout *log.Logger
+	stderr *log.Logger
 }
 
 func (l *logger) Logf(severity logging.Severity, format string, args ...interface{}) string {
 	message := fmt.Sprintf(format, args...)
-	if LogGke {
-		l.Log(logging.Entry{Severity: severity, Payload: fmtPayload{
-			Message: message,
-			Args:    args,
-		}})
+	if severity < LogThreshold {
+		return message
 	}
+
+	if LogGke {
+		l.Log(logging.Entry{Severity: severity, Payload: message})
+	}
+
 	if LogStd {
-		log.Printf("%v %s", severity, message)
+		switch {
+		case severity >= LogThresholdError:
+			l.stderr.Printf("%v %s", severity, message)
+		default:
+			l.stdout.Printf("%v %s", severity, message)
+		}
 	}
 	return message
 }
@@ -150,14 +166,22 @@ func (l *logger) Errorf(format string, args ...interface{}) string {
 }
 
 func (l *logger) LogErr(severity logging.Severity, err error) error {
+	if severity < LogThreshold {
+		return err
+	}
+
+	message := fmt.Sprintf("%v", err)
+
 	if LogGke {
-		l.Log(logging.Entry{Severity: severity, Payload: errPayload{
-			Message: fmt.Sprintf("%v", err),
-			Err:     err,
-		}})
+		l.Log(logging.Entry{Severity: severity, Payload: message})
 	}
 	if LogStd {
-		log.Printf("%v %v", severity, err)
+		switch {
+		case severity >= LogThresholdError:
+			l.stderr.Print(message)
+		default:
+			l.stdout.Print(message)
+		}
 	}
 	return err
 }
