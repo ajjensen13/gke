@@ -136,7 +136,7 @@ func (l *logger) Log(entry logging.Entry) {
 	if l.client.logGke {
 		l.gkeLogger.Log(entry)
 	} else if LogStd {
-		l.Logf(entry.Severity, "%v", entry.Payload)
+		l.Logf(entry.Severity, "%#v", entry.Payload)
 	}
 }
 
