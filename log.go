@@ -20,6 +20,7 @@ import (
 	"cloud.google.com/go/logging"
 	"context"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -103,29 +104,47 @@ func provideLoggingClient(ctx context.Context, parent LogParentId) (*logging.Cli
 }
 
 func provideLogClient(client *logging.Client) (LogClient, error) {
-	return &logClient{Client: client}, nil
+	return &logClient{Client: client, logGke: LogGke, logStd: LogStd}, nil
 }
 
 type logClient struct {
 	*logging.Client
+	logGke, logStd bool
 }
 
 func (l *logClient) Logger(logID string) Logger {
-	return &logger{
-		logId:  logID,
-		client: l,
-		Logger: l.Client.Logger(logID),
-		stdout: log.New(os.Stdout, log.Prefix(), log.Flags()),
-		stderr: log.New(os.Stderr, log.Prefix(), log.Flags()),
+	result := logger{logId: logID, client: l}
+	if LogGke {
+		result.gkeLogger = l.Client.Logger(logID)
 	}
+	if LogStd {
+		result.stdout = log.New(os.Stdout, log.Prefix(), log.Flags())
+		result.stderr = log.New(os.Stderr, log.Prefix(), log.Flags())
+	}
+	return &result
 }
 
 type logger struct {
-	logId  string
-	client *logClient
-	*logging.Logger
-	stdout *log.Logger
-	stderr *log.Logger
+	logId     string
+	client    *logClient
+	gkeLogger *logging.Logger
+	stdout    *log.Logger
+	stderr    *log.Logger
+}
+
+func (l *logger) Log(entry logging.Entry) {
+	if l.client.logGke {
+		l.gkeLogger.Log(entry)
+	} else if LogStd {
+		l.Logf(entry.Severity, "%v", entry.Payload)
+	}
+}
+
+func (l *logger) Flush() error {
+	if l.client.logGke {
+		return l.gkeLogger.Flush()
+	}
+	return nil
 }
 
 func (l *logger) Logf(severity logging.Severity, format string, args ...interface{}) string {
@@ -134,11 +153,11 @@ func (l *logger) Logf(severity logging.Severity, format string, args ...interfac
 		return message
 	}
 
-	if LogGke {
-		l.Log(logging.Entry{Severity: severity, Payload: message})
+	if l.client.logGke {
+		l.gkeLogger.Log(logging.Entry{Severity: severity, Payload: message})
 	}
 
-	if LogStd {
+	if l.client.logStd {
 		switch {
 		case severity >= LogThresholdError:
 			l.stderr.Printf("%v %s", severity, message)
@@ -172,10 +191,10 @@ func (l *logger) LogErr(severity logging.Severity, err error) error {
 
 	message := fmt.Sprintf("%v", err)
 
-	if LogGke {
+	if l.client.logGke {
 		l.Log(logging.Entry{Severity: severity, Payload: message})
 	}
-	if LogStd {
+	if l.client.logStd {
 		switch {
 		case severity >= LogThresholdError:
 			l.stderr.Print(message)
@@ -200,6 +219,23 @@ func (l *logger) WarnErr(err error) error {
 
 func (l *logger) ErrorErr(err error) error {
 	return l.LogErr(logging.Error, err)
+}
+
+var discardLogger = log.New(ioutil.Discard, log.Prefix(), log.Flags())
+
+func (l *logger) StandardLogger(severity logging.Severity) *log.Logger {
+	if l.client.logGke {
+		return l.gkeLogger.StandardLogger(severity)
+	}
+	if l.client.logStd {
+		switch {
+		case severity >= LogThresholdError:
+			return l.stderr
+		default:
+			return l.stdout
+		}
+	}
+	return discardLogger
 }
 
 type LogClient interface {
