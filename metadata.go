@@ -120,19 +120,6 @@ func initMetadata() {
 }
 
 func Metadata() *MetadataType {
+	pkgMetadataOnce.Do(initMetadata)
 	return &pkgMetadata
-}
-
-func InstanceID() string {
-	pkgMetadataOnce.Do(initMetadata)
-	return pkgMetadata.InstanceID
-}
-
-func InstanceName() string {
-	pkgMetadataOnce.Do(initMetadata)
-	return pkgMetadata.InstanceName
-}
-
-func OnGCE() bool {
-	return metadata.OnGCE()
 }
