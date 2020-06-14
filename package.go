@@ -1,5 +1,3 @@
-// +build wireinject
-
 /*
 Copyright © 2020 A. Jensen <jensen.aaro@gmail.com>
 
@@ -16,15 +14,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
+
+// Package gke implements wrappers sets up other useful behaviors for running
+// applications in GKE.
 package gke
-
-import (
-	"context"
-	"github.com/google/wire"
-	"net/http"
-)
-
-// NewServer returns a new server with settings defaulted for use in GKE.
-func NewServer(ctx context.Context, handler http.Handler, lg Logger) (*http.Server, error) {
-	panic(wire.Build(provideServer))
-}
