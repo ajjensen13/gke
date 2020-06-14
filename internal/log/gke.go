@@ -38,7 +38,7 @@ func (g GkeClient) Logger(logID string, opts ...logging.LoggerOption) Logger {
 }
 
 func (g GkeClient) Close() error {
-	panic("implement me")
+	return g.client.Close()
 }
 
 type GkeLogger struct {
