@@ -22,7 +22,7 @@ var (
 )
 
 func init() {
-	if OnGCE() {
+	if Metadata().OnGCE {
 		LogGke = true
 		return
 	}
@@ -40,9 +40,14 @@ func NewLogClient(ctx context.Context) (LogClient, func(), error) {
 		if err != nil {
 			return LogClient{}, func() {}, err
 		}
+		err = client.Ping(ctx)
+		if err != nil {
+			return LogClient{}, func() {}, err
+		}
 		result = append(result, client)
 		prevCleanup := cleanup
 		cleanup = func() { prevCleanup(); _ = client.Close() }
+
 	}
 
 	if LogStd {

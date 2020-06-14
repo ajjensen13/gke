@@ -21,10 +21,10 @@ import (
 	"context"
 )
 
-func NewGkeClient(ctx context.Context, parent string) (Client, error) {
+func NewGkeClient(ctx context.Context, parent string) (GkeClient, error) {
 	client, err := logging.NewClient(ctx, parent)
 	if err != nil {
-		return nil, err
+		return GkeClient{}, err
 	}
 	return GkeClient{client}, nil
 }
@@ -39,6 +39,10 @@ func (g GkeClient) Logger(logID string, opts ...logging.LoggerOption) Logger {
 
 func (g GkeClient) Close() error {
 	return g.client.Close()
+}
+
+func (g GkeClient) Ping(ctx context.Context) error {
+	return g.client.Ping(ctx)
 }
 
 type GkeLogger struct {
