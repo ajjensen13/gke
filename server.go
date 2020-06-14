@@ -26,7 +26,7 @@ import (
 )
 
 func provideServer(lg Logger, handler http.Handler) *http.Server {
-	return &http.Server{
+	result := http.Server{
 		Handler:           handler,
 		ReadTimeout:       time.Second * 30,
 		ReadHeaderTimeout: time.Second * 5,
@@ -42,6 +42,12 @@ func provideServer(lg Logger, handler http.Handler) *http.Server {
 			return context.WithValue(ctx, RequestContextKey, uuid.New().String())
 		},
 	}
+	go func() {
+		alive, _ := AliveContext()
+		<-alive.Done()
+		_ = result.Shutdown(context.Background())
+	}()
+	return &result
 }
 
 type requestContextKey string
