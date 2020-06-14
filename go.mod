@@ -11,5 +11,6 @@ require (
 	golang.org/x/net v0.0.0-20200602114024-627f9648deb9 // indirect
 	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
 	golang.org/x/sys v0.0.0-20200610111108-226ff32320da // indirect
+	golang.org/x/tools v0.0.0-20200612220849-54c614fe050c // indirect
 	google.golang.org/genproto v0.0.0-20200610212329-df9b449b0ff2
 )

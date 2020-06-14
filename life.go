@@ -14,6 +14,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
+
 package gke
 
 import (
@@ -22,6 +23,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -52,6 +54,9 @@ func init() {
 	}()
 }
 
+// Do kicks off a function that will run while the application is alive. It is passed
+// the AliveContext() context as a parameter. It should shutdown once the alive
+// context has been cancelled.
 func Do(f func(context.Context) error) {
 	pkgSyncWaitGroup.Add(1)
 	pkgErrGroup.Go(func() error {
@@ -65,20 +70,26 @@ func AliveContext() (context.Context, context.CancelFunc) {
 	return pkgAlive, pkgAliveCancel
 }
 
-func WaitForCleanup(timeout time.Duration) error {
-	done := make(chan error)
+// AfterAliveContext returns a context that completes when the alive context has been cancelled and all
+// functions that were started by calling Do() have returned.
+func AfterAliveContext(timeout time.Duration) context.Context {
+	result, cancelFunc := context.WithCancel(context.Background())
+
+	wf := int32(0)
 	go func() {
-		defer close(done)
+		defer cancelFunc()
 		<-pkgAlive.Done()
-		ctx, _ := context.WithTimeout(context.Background(), timeout)
-		<-ctx.Done()
-		done <- ctx.Err()
+		<-time.After(timeout)
+		if atomic.LoadInt32(&wf) == 0 {
+			panic("program failed to shutdown gracefully")
+		}
 	}()
 
 	go func() {
-		defer close(done)
+		defer cancelFunc()
 		pkgSyncWaitGroup.Wait()
+		atomic.StoreInt32(&wf, 1)
 	}()
 
-	return <-done
+	return result
 }
