@@ -35,7 +35,7 @@ func provideServer(lg Logger, handler http.Handler) *http.Server {
 		MaxHeaderBytes:    http.DefaultMaxHeaderBytes,
 		ErrorLog:          lg.StandardLogger(logging.Error),
 		BaseContext: func(_ net.Listener) (ctx context.Context) {
-			ctx, _ = Alive()
+			ctx, _ = AliveContext()
 			return
 		},
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {

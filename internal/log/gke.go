@@ -1,5 +1,3 @@
-// +build wireinject
-
 /*
 Copyright © 2020 A. Jensen <jensen.aaro@gmail.com>
 
@@ -16,17 +14,33 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-package gke
+package log
 
 import (
+	"cloud.google.com/go/logging"
 	"context"
-	"github.com/google/wire"
 )
 
-func NewLogClient(ctx context.Context) (LogClient, func(), error) {
-	panic(wire.Build(provideLoggingClient, provideLogClient, NewLogParentId))
+func NewGkeClient(ctx context.Context, parent string) (Client, error) {
+	client, err := logging.NewClient(ctx, parent)
+	if err != nil {
+		return nil, err
+	}
+	return GkeClient{client}, nil
 }
 
-func NewLogger(logc LogClient) (Logger, func(), error) {
-	panic(wire.Build(provideLogger, NewLogId))
+type GkeClient struct {
+	client *logging.Client
+}
+
+func (g GkeClient) Logger(logID string, opts ...logging.LoggerOption) Logger {
+	return g.client.Logger(logID, opts...)
+}
+
+func (g GkeClient) Close() error {
+	panic("implement me")
+}
+
+type GkeLogger struct {
+	*logging.Logger
 }

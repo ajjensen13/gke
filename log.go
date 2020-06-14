@@ -1,19 +1,3 @@
-/*
-Copyright © 2020 A. Jensen <jensen.aaro@gmail.com>
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program. If not, see <http://www.gnu.org/licenses/>.
-*/
 package gke
 
 import (
@@ -21,18 +5,13 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"log"
+	stdlog "log"
 	"os"
-	"path"
-	"runtime/debug"
-)
+	"runtime"
 
-var (
-	// LogThreshold is the minimum severity to output
-	LogThreshold = logging.Debug
-	// LogThresholdError is the minimum severity to output to stdout (rather than stderr).
-	// This does not affect StackDriver logging
-	LogThresholdError = logging.Error
+	logpb "google.golang.org/genproto/googleapis/logging/v2"
+
+	"github.com/ajjensen13/gke/internal/log"
 )
 
 var (
@@ -48,211 +27,181 @@ func init() {
 	LogStd = true
 }
 
-type LogParentId string
+func NewLogClient(ctx context.Context) (LogClient, func(), error) {
+	var result log.MultiClient
+	var cleanup = func() {}
 
-func NewLogParentId() LogParentId {
 	if LogGke {
-		return LogParentId("projects/" + ProjectID())
-	}
-	return LogParentId("")
-}
-
-type LogId string
-
-func NewLogId() LogId {
-	if LogGke {
-		result, ok := os.LookupEnv("GKE_LOG_ID")
-		if ok {
-			return LogId(result)
+		parent := Metadata().ProjectID
+		client, err := log.NewGkeClient(ctx, "projects/"+parent)
+		if err != nil {
+			return LogClient{}, func() {}, err
 		}
-
-		info, ok := debug.ReadBuildInfo()
-		if ok {
-			return LogId(path.Base(info.Path))
-		}
-
-		return LogId(os.Args[0])
-	}
-	return LogId("")
-}
-
-func provideLogger(logc LogClient, logId LogId) (Logger, func()) {
-	l := logc.Logger(string(logId))
-	return l, func() { _ = l.Flush() }
-}
-
-func provideLoggingClient(ctx context.Context, parent LogParentId) (*logging.Client, func(), error) {
-	if !LogGke {
-		return nil, func() {}, nil
+		result = append(result, client)
+		prevCleanup := cleanup
+		cleanup = func() { prevCleanup(); _ = client.Close() }
 	}
 
-	result, err := logging.NewClient(ctx, string(parent))
-	if err != nil {
-		return nil, nil, err
-	}
-
-	result.OnError = func(err error) {
-		log.Printf("%v", err)
-	}
-
-	err = result.Ping(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return result, func() { _ = result.Close() }, nil
-}
-
-func provideLogClient(client *logging.Client) (LogClient, error) {
-	return &logClient{Client: client, logGke: LogGke, logStd: LogStd}, nil
-}
-
-type logClient struct {
-	*logging.Client
-	logGke, logStd bool
-}
-
-func (l *logClient) Logger(logID string) Logger {
-	result := logger{logId: logID, client: l}
-	if LogGke {
-		result.gkeLogger = l.Client.Logger(logID)
-	}
 	if LogStd {
-		result.stdout = log.New(os.Stdout, log.Prefix(), log.Flags())
-		result.stderr = log.New(os.Stderr, log.Prefix(), log.Flags())
-	}
-	return &result
-}
-
-type logger struct {
-	logId     string
-	client    *logClient
-	gkeLogger *logging.Logger
-	stdout    *log.Logger
-	stderr    *log.Logger
-}
-
-func (l *logger) Log(entry logging.Entry) {
-	if l.client.logGke {
-		l.gkeLogger.Log(entry)
-	} else if LogStd {
-		l.Logf(entry.Severity, "%#v", entry.Payload)
-	}
-}
-
-func (l *logger) Flush() error {
-	if l.client.logGke {
-		return l.gkeLogger.Flush()
-	}
-	return nil
-}
-
-func (l *logger) Logf(severity logging.Severity, format string, args ...interface{}) string {
-	message := fmt.Sprintf(format, args...)
-	if severity < LogThreshold {
-		return message
+		client := log.NewStandardClient(os.Stderr)
+		result = append(result, client)
+		prevCleanup := cleanup
+		cleanup = func() { prevCleanup(); _ = client.Close() }
 	}
 
-	if l.client.logGke {
-		l.gkeLogger.Log(logging.Entry{Severity: severity, Payload: message})
+	if len(result) == 0 {
+		result = append(result, log.NewStandardClient(ioutil.Discard))
 	}
 
-	if l.client.logStd {
-		switch {
-		case severity >= LogThresholdError:
-			l.stderr.Printf("%v %s", severity, message)
-		default:
-			l.stdout.Printf("%v %s", severity, message)
-		}
+	return LogClient{result}, cleanup, nil
+}
+
+type LogClient struct {
+	log.Client
+}
+
+func (lc LogClient) Logger(logId string, opts ...logging.LoggerOption) Logger {
+	return Logger{lc.Client.Logger(logId, opts...)}
+}
+
+type Logger struct {
+	log.Logger
+}
+
+func (l Logger) StandardLogger(severity logging.Severity) *stdlog.Logger {
+	return l.Logger.StandardLogger(severity)
+}
+
+func (l Logger) logPayload(severity logging.Severity, payload interface{}) {
+	var sl *logpb.LogEntrySourceLocation
+	if _, file, line, ok := runtime.Caller(2); ok {
+		sl = &logpb.LogEntrySourceLocation{File: file, Line: int64(line)}
 	}
-	return message
+	l.Logger.Log(logging.Entry{Severity: severity, Payload: payload, SourceLocation: sl})
 }
 
-func (l *logger) Infof(format string, args ...interface{}) string {
-	return l.Logf(logging.Info, format, args...)
+func (l Logger) log(severity logging.Severity, args ...interface{}) {
+	l.logPayload(severity, args)
 }
 
-func (l *logger) Noticef(format string, args ...interface{}) string {
-	return l.Logf(logging.Notice, format, args...)
+func (l Logger) Default(args ...interface{}) {
+	l.log(logging.Default, args)
 }
 
-func (l *logger) Warnf(format string, args ...interface{}) string {
-	return l.Logf(logging.Warning, format, args...)
+func (l Logger) Debug(args ...interface{}) {
+	l.log(logging.Debug, args)
 }
 
-func (l *logger) Errorf(format string, args ...interface{}) string {
-	return l.Logf(logging.Error, format, args...)
+func (l Logger) Info(args ...interface{}) {
+	l.log(logging.Info, args)
 }
 
-func (l *logger) LogErr(severity logging.Severity, err error) error {
-	if severity < LogThreshold {
-		return err
-	}
+func (l Logger) Notice(args ...interface{}) {
+	l.log(logging.Notice, args)
+}
 
-	message := fmt.Sprintf("%v", err)
+func (l Logger) Warning(args ...interface{}) {
+	l.log(logging.Warning, args)
+}
 
-	if l.client.logGke {
-		l.Log(logging.Entry{Severity: severity, Payload: message})
-	}
-	if l.client.logStd {
-		switch {
-		case severity >= LogThresholdError:
-			l.stderr.Print(message)
-		default:
-			l.stdout.Print(message)
-		}
+func (l Logger) Error(args ...interface{}) {
+	l.log(logging.Error, args)
+}
+
+func (l Logger) Alert(args ...interface{}) {
+	l.log(logging.Alert, args)
+}
+
+func (l Logger) Critical(args ...interface{}) {
+	l.log(logging.Critical, args)
+}
+
+func (l Logger) Emergency(args ...interface{}) {
+	l.log(logging.Emergency, args)
+}
+
+func (l Logger) logf(severity logging.Severity, format string, args ...interface{}) string {
+	str := fmt.Sprintf(format, args...)
+	l.logPayload(severity, str)
+	return str
+}
+
+func (l Logger) Defaultf(format string, args ...interface{}) string {
+	return l.logf(logging.Default, format, args...)
+}
+
+func (l Logger) Debugf(format string, args ...interface{}) string {
+	return l.logf(logging.Debug, format, args...)
+}
+
+func (l Logger) Infof(format string, args ...interface{}) string {
+	return l.logf(logging.Info, format, args...)
+}
+
+func (l Logger) Noticef(format string, args ...interface{}) string {
+	return l.logf(logging.Notice, format, args...)
+}
+
+func (l Logger) Warningf(format string, args ...interface{}) string {
+	return l.logf(logging.Warning, format, args...)
+}
+
+func (l Logger) Errorf(format string, args ...interface{}) string {
+	return l.logf(logging.Error, format, args...)
+}
+
+func (l Logger) Alertf(format string, args ...interface{}) string {
+	return l.logf(logging.Alert, format, args...)
+}
+
+func (l Logger) Criticalf(format string, args ...interface{}) string {
+	return l.logf(logging.Critical, format, args...)
+}
+
+func (l Logger) Emergencyf(format string, args ...interface{}) string {
+	return l.logf(logging.Emergency, format, args...)
+}
+
+func (l Logger) logErr(severity logging.Severity, err error) error {
+	if err != nil {
+		str := fmt.Sprintf("%v", err)
+		l.logPayload(severity, str)
 	}
 	return err
 }
 
-func (l *logger) InfoErr(err error) error {
-	return l.LogErr(logging.Info, err)
+func (l Logger) DefaultErr(err error) error {
+	return l.logErr(logging.Default, err)
 }
 
-func (l *logger) NoticeErr(err error) error {
-	return l.LogErr(logging.Notice, err)
+func (l Logger) DebugErr(err error) error {
+	return l.logErr(logging.Debug, err)
 }
 
-func (l *logger) WarnErr(err error) error {
-	return l.LogErr(logging.Warning, err)
+func (l Logger) InfoErr(err error) error {
+	return l.logErr(logging.Info, err)
 }
 
-func (l *logger) ErrorErr(err error) error {
-	return l.LogErr(logging.Error, err)
+func (l Logger) NoticeErr(err error) error {
+	return l.logErr(logging.Notice, err)
 }
 
-var discardLogger = log.New(ioutil.Discard, log.Prefix(), log.Flags())
-
-func (l *logger) StandardLogger(severity logging.Severity) *log.Logger {
-	if l.client.logGke {
-		return l.gkeLogger.StandardLogger(severity)
-	}
-	if l.client.logStd {
-		switch {
-		case severity >= LogThresholdError:
-			return l.stderr
-		default:
-			return l.stdout
-		}
-	}
-	return discardLogger
+func (l Logger) WarningErr(err error) error {
+	return l.logErr(logging.Warning, err)
 }
 
-type LogClient interface {
-	Logger(logID string) Logger
+func (l Logger) ErrorErr(err error) error {
+	return l.logErr(logging.Error, err)
 }
 
-type Logger interface {
-	StandardLogger(severity logging.Severity) *log.Logger
-	Log(entry logging.Entry)
-	Logf(severity logging.Severity, format string, args ...interface{}) string
-	Infof(format string, args ...interface{}) string
-	Noticef(format string, args ...interface{}) string
-	Warnf(format string, args ...interface{}) string
-	Errorf(format string, args ...interface{}) string
-	InfoErr(err error) error
-	NoticeErr(err error) error
-	WarnErr(err error) error
-	ErrorErr(err error) error
-	Flush() error
+func (l Logger) AlertErr(err error) error {
+	return l.logErr(logging.Alert, err)
+}
+
+func (l Logger) CriticalErr(err error) error {
+	return l.logErr(logging.Critical, err)
+}
+
+func (l Logger) EmergencyErr(err error) error {
+	return l.logErr(logging.Emergency, err)
 }

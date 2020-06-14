@@ -10,32 +10,6 @@ import (
 	"net/http"
 )
 
-// Injectors from log_wireinject.go:
-
-func NewLogClient(ctx context.Context) (LogClient, func(), error) {
-	logParentId := NewLogParentId()
-	client, cleanup, err := provideLoggingClient(ctx, logParentId)
-	if err != nil {
-		return nil, nil, err
-	}
-	gkeLogClient, err := provideLogClient(client)
-	if err != nil {
-		cleanup()
-		return nil, nil, err
-	}
-	return gkeLogClient, func() {
-		cleanup()
-	}, nil
-}
-
-func NewLogger(logc LogClient) (Logger, func(), error) {
-	logId := NewLogId()
-	gkeLogger, cleanup := provideLogger(logc, logId)
-	return gkeLogger, func() {
-		cleanup()
-	}, nil
-}
-
 // Injectors from server_wireinject.go:
 
 func NewServer(ctx context.Context, handler http.Handler, lg Logger) (*http.Server, error) {

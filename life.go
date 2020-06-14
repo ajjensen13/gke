@@ -18,38 +18,67 @@ package gke
 
 import (
 	"context"
+	"golang.org/x/sync/errgroup"
 	"os"
 	"os/signal"
+	"sync"
+	"time"
 )
 
 var (
-	pkgAlive       context.Context
-	pkgAliveCancel context.CancelFunc
+	pkgAlive         context.Context
+	pkgAliveCancel   context.CancelFunc
+	pkgErrGroup      *errgroup.Group
+	pkgErrGroupCtx   context.Context
+	pkgSyncWaitGroup sync.WaitGroup
 )
 
 func init() {
 	pkgAlive, pkgAliveCancel = context.WithCancel(context.Background())
+	pkgErrGroup, pkgErrGroupCtx = errgroup.WithContext(pkgAlive)
 
 	go func() {
+		defer pkgAliveCancel()
+
 		c := make(chan os.Signal, 2)
 		signal.Notify(c, os.Interrupt, os.Kill)
-		s := <-c
-		signal.Stop(c)
 
-		client, cleanup, err := NewLogClient(context.Background())
-		if err != nil {
-			panic(err)
+		select {
+		case <-c:
+		case <-pkgErrGroupCtx.Done():
 		}
-		defer cleanup()
 
-		logger := client.Logger(os.Args[0] + "-signal-handler")
-		logger.Noticef("signal received: %v", s)
-
-		pkgAliveCancel()
+		signal.Stop(c)
 	}()
 }
 
-// Alive returns a context that is used to communicate a shutdown to various parts of an application.
-func Alive() (context.Context, context.CancelFunc) {
+func Do(f func(context.Context) error) {
+	pkgSyncWaitGroup.Add(1)
+	pkgErrGroup.Go(func() error {
+		defer pkgSyncWaitGroup.Done()
+		return f(pkgAlive)
+	})
+}
+
+// AliveContext returns a context that is used to communicate a shutdown to various parts of an application.
+func AliveContext() (context.Context, context.CancelFunc) {
 	return pkgAlive, pkgAliveCancel
+}
+
+func WaitForCleanup(timeout time.Duration) error {
+	done := make(chan error)
+	go func() {
+		defer close(done)
+		<-pkgAlive.Done()
+		ctx, _ := context.WithTimeout(context.Background(), timeout)
+		<-ctx.Done()
+		done <- ctx.Err()
+	}()
+
+	go func() {
+		defer close(done)
+		pkgSyncWaitGroup.Wait()
+	}()
+
+	return <-done
 }

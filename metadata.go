@@ -18,16 +18,119 @@ package gke
 
 import (
 	"cloud.google.com/go/compute/metadata"
+	"sync"
 )
 
-func ProjectID() string {
-	id, _ := metadata.ProjectID()
-	return id
+type MetadataType struct {
+	OnGCE              bool
+	ProjectID          string
+	InstanceID         string
+	InstanceName       string
+	ExternalIP         string
+	InternalIP         string
+	Hostname           string
+	Zone               string
+	InstanceTags       []string
+	InstanceAttributes map[string]string
+	ProjectAttributes  map[string]string
+}
+
+var (
+	pkgMetadata     MetadataType
+	pkgMetadataOnce sync.Once
+)
+
+func initMetadata() {
+	pkgMetadata.OnGCE = metadata.OnGCE()
+
+	pid, err := metadata.ProjectID()
+	if err != nil {
+		panic(err)
+	}
+	pkgMetadata.ProjectID = pid
+
+	iid, err := metadata.InstanceID()
+	if err != nil {
+		panic(err)
+	}
+	pkgMetadata.InstanceID = iid
+
+	instName, err := metadata.InstanceName()
+	if err != nil {
+		panic(err)
+	}
+	pkgMetadata.InstanceName = instName
+
+	exIP, err := metadata.ExternalIP()
+	if err != nil {
+		panic(err)
+	}
+	pkgMetadata.ExternalIP = exIP
+
+	inIP, err := metadata.InternalIP()
+	if err != nil {
+		panic(err)
+	}
+	pkgMetadata.InternalIP = inIP
+
+	host, err := metadata.Hostname()
+	if err != nil {
+		panic(err)
+	}
+	pkgMetadata.Hostname = host
+
+	vals, err := metadata.InstanceAttributes()
+	if err != nil {
+		panic(err)
+	}
+	pkgMetadata.InstanceAttributes = make(map[string]string, len(vals))
+
+	for _, val := range vals {
+		v, err := metadata.InstanceAttributeValue(val)
+		if err != nil {
+			panic(err)
+		}
+		pkgMetadata.InstanceAttributes[val] = v
+	}
+
+	instTags, err := metadata.InstanceTags()
+	if err != nil {
+		panic(err)
+	}
+	pkgMetadata.InstanceTags = instTags
+
+	vals, err = metadata.ProjectAttributes()
+	if err != nil {
+		panic(err)
+	}
+	pkgMetadata.ProjectAttributes = make(map[string]string, len(vals))
+	for _, val := range vals {
+		v, err := metadata.ProjectAttributeValue(val)
+		if err != nil {
+			panic(err)
+		}
+		pkgMetadata.ProjectAttributes[val] = v
+	}
+
+	zone, err := metadata.Zone()
+	if err != nil {
+		panic(err)
+	}
+	pkgMetadata.Zone = zone
+}
+
+func Metadata() *MetadataType {
+	return &pkgMetadata
+}
+
+func InstanceID() string {
+	pkgMetadataOnce.Do(initMetadata)
+	return pkgMetadata.InstanceID
 }
 
 func InstanceName() string {
-	name, _ := metadata.InstanceName()
-	return name
+	pkgMetadataOnce.Do(initMetadata)
+	return pkgMetadata.InstanceName
 }
 
 func OnGCE() bool {
