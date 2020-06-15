@@ -20,6 +20,7 @@ import (
 	"cloud.google.com/go/logging"
 	"context"
 	mrpb "google.golang.org/genproto/googleapis/api/monitoredres"
+	"strings"
 
 	"github.com/ajjensen13/gke/internal/metadata"
 )
@@ -38,6 +39,11 @@ type GkeClient struct {
 
 func (g GkeClient) Logger(logID string) Logger {
 	md, _ := metadata.Metadata()
+	labels := make(map[string]string, len(md.PodLabels))
+	for k, v := range md.PodLabels {
+		k = "k8s-pod/" + strings.ReplaceAll(k, ".", "_")
+		labels[k] = v
+	}
 	return g.client.Logger(
 		logID,
 		logging.CommonResource(&mrpb.MonitoredResource{
@@ -51,7 +57,7 @@ func (g GkeClient) Logger(logID string) Logger {
 				// TODO "container_name": md.ContainerName,
 			},
 		}),
-		logging.CommonLabels(md.PodLabels),
+		logging.CommonLabels(labels),
 	)
 }
 
