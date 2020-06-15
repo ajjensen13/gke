@@ -42,6 +42,9 @@ var (
 
 func initMetadata() {
 	pkgMetadata.OnGCE = metadata.OnGCE()
+	if !pkgMetadata.OnGCE {
+		return
+	}
 
 	pid, err := metadata.ProjectID()
 	if err != nil {
