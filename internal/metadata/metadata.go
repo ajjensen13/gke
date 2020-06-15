@@ -14,6 +14,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
+
 package metadata
 
 import (
@@ -75,10 +76,8 @@ var (
 	pkgMetadataOnce sync.Once
 )
 
-var (
-	// ErrNotOnGCE is returned when requesting metadata while not on GCE.
-	ErrNotOnGCE = errors.New("not on GCE")
-)
+// ErrNotOnGCE is returned when requesting metadata while not on GCE.
+var ErrNotOnGCE = errors.New("not on GCE")
 
 func initMetadata() {
 	pkgMetadata.OnGCE = metadata.OnGCE()

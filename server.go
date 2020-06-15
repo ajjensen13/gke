@@ -14,6 +14,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
+
 package gke
 
 import (
@@ -52,4 +53,6 @@ func provideServer(lg Logger, handler http.Handler) *http.Server {
 
 type requestContextKey string
 
+// RequestContextKey is the context key used for storing data in requests
+// served by a server from gke.NewServer().
 const RequestContextKey = requestContextKey(`gkeRequestContextKey`)

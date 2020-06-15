@@ -16,6 +16,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
+
 package gke
 
 import (
@@ -24,7 +25,10 @@ import (
 	"net/http"
 )
 
-// NewServer returns a new server with settings defaulted for use in GKE.
+// NewServer returns a new server with settings defaulted for use in GKE. The server
+// is initialized with sensible defaults for timeout values. It sets the base context
+// to AliveContext(). It starts a go routine to call Shutdown() when the AliveContext()
+// is canceled. It sets up a ConnContext function to initialize the RequestContextKey data.
 func NewServer(ctx context.Context, handler http.Handler, lg Logger) (*http.Server, error) {
 	panic(wire.Build(provideServer))
 }

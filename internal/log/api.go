@@ -14,6 +14,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
+
 package log
 
 import (
@@ -23,7 +24,7 @@ import (
 
 // Client is used to provision new loggers and close underlying connections during shutdown.
 type Client interface {
-	// Logger returns a logger with a provided logID. If logID is empty, then DefaultLogID will be used.
+	// Logger returns a logger with a provided logID.
 	Logger(logID string) Logger
 	// Close waits for all opened loggers to be flushed and closes the client.
 	Close() error

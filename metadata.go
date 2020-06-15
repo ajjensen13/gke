@@ -14,6 +14,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
+
 package gke
 
 import (
@@ -22,8 +23,15 @@ import (
 	"github.com/ajjensen13/gke/internal/metadata"
 )
 
-// Metadata returns the GKE metadata if we are running on GKE.
-func Metadata() (md *metadata.MetadataType, err error) {
+// ErrNotOnGCE is returned when requesting metadata while not on GCE.
+var ErrNotOnGCE = metadata.ErrNotOnGCE
+
+// MetadataType is structured GCE metadata.
+type MetadataType = metadata.MetadataType
+
+// Metadata returns a cached instance of the GCE metadata. If not on GCE, Metadata() returns ErrNotOnGCE.
+// The data comes from various sources including the GCE metadata server and K8 downward API volumes.
+func Metadata() (md *MetadataType, err error) {
 	return metadata.Metadata()
 }
 

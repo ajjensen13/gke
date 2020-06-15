@@ -14,6 +14,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
+
 package log
 
 import (
@@ -28,14 +29,18 @@ type StandardClient struct {
 	writer io.Writer
 }
 
+// NewStandardClient returns a new StandardClient that writes to writer.
 func NewStandardClient(writer io.Writer) Client {
 	return StandardClient{writer}
 }
 
+// Logger returns a logger with a provided logID.
 func (s StandardClient) Logger(logID string) Logger {
 	return newStdLogger(s.writer, logID)
 }
 
+// Close implements log.Client.Close().
+// For StandardClient, it is a no-op.
 func (s StandardClient) Close() error {
 	return nil // no-op
 }
@@ -69,10 +74,12 @@ func (s *standardLogger) setLoggerForSeverity(writer io.Writer, severity logging
 	s.bySeverity[severity] = log.New(writer, fmt.Sprintf("%s %s ", logId, severity.String()), flags)
 }
 
+// StandardLogger implements log.Logger.StandardLogger().
 func (s *standardLogger) StandardLogger(severity logging.Severity) *log.Logger {
 	return s.bySeverity[severity]
 }
 
+// StandardLogger implements log.Logger.Log().
 func (s *standardLogger) Log(entry logging.Entry) {
 	if l, ok := s.bySeverity[entry.Severity]; ok {
 		_ = l.Output(6, fmt.Sprintf("%v", entry.Payload))
@@ -90,6 +97,7 @@ type syncer interface {
 	Sync() error
 }
 
+// StandardLogger implements log.Logger.Flush().
 func (s *standardLogger) Flush() error {
 	for _, logger := range s.bySeverity {
 		w := logger.Writer()

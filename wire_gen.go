@@ -12,6 +12,10 @@ import (
 
 // Injectors from log_wireinject.go:
 
+// NewLogger is a convenience function for providing a default logger. It creates
+// a new client, then creates a new logger with DefaultLogID.
+// Note: ctx should usually be context.Background() to ensure that the logging
+// events occur event after AliveContext() is canceled.
 func NewLogger(ctx context.Context) (Logger, func(), error) {
 	logClient, cleanup, err := NewLogClient(ctx)
 	if err != nil {
@@ -30,6 +34,10 @@ func NewLogger(ctx context.Context) (Logger, func(), error) {
 
 // Injectors from server_wireinject.go:
 
+// NewServer returns a new server with settings defaulted for use in GKE. The server
+// is initialized with sensible defaults for timeout values. It sets the base context
+// to AliveContext(). It starts a go routine to call Shutdown() when the AliveContext()
+// is canceled. It sets up a ConnContext function to initialize the RequestContextKey data.
 func NewServer(ctx context.Context, handler http.Handler, lg Logger) (*http.Server, error) {
 	server := provideServer(lg, handler)
 	return server, nil
@@ -37,6 +45,7 @@ func NewServer(ctx context.Context, handler http.Handler, lg Logger) (*http.Serv
 
 // Injectors from storage_wireinject.go:
 
+// NewStorageClient creates a new Google Cloud Storage client.
 func NewStorageClient(ctx context.Context) (StorageClient, func(), error) {
 	storageClient, cleanup, err := provideStorageClient(ctx)
 	if err != nil {
