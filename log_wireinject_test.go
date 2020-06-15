@@ -14,28 +14,21 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-package gke
+package gke_test
 
 import (
-	"os"
+	"context"
 
-	"github.com/ajjensen13/gke/internal/metadata"
+	"github.com/ajjensen13/gke"
 )
 
-// Metadata returns the GKE metadata if we are running on GKE.
-func Metadata() (md *metadata.MetadataType, ok bool) {
-	return metadata.Metadata()
-}
+func ExampleNewLogger() {
+	lg, cleanup, err := gke.NewLogger(context.Background())
+	if err != nil {
+		panic(err)
+	}
+	defer cleanup()
 
-// LogMetadata logs the metadata at Info severity.
-// It is provided for consistency in logging across GKE applications.
-func LogMetadata(lg Logger) {
-	md, ok := Metadata()
-	lg.Info(NewMsgData("gke.Metadata()", md, ok))
-}
-
-// LogEnv logs the environment at Info severity.
-// It is provided for consistency in logging across GKE applications.
-func LogEnv(lg Logger) {
-	lg.Info(NewMsgData("os.Environ()", os.Environ()))
+	// Use logger
+	lg.Info("hello, world")
 }

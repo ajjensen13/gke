@@ -21,13 +21,20 @@ import (
 	"log"
 )
 
+// Client is used to provision new loggers and close underlying connections during shutdown.
 type Client interface {
+	// Logger returns a logger with a provided logID. If logID is empty, then DefaultLogID will be used.
 	Logger(logID string) Logger
+	// Close waits for all opened loggers to be flushed and closes the client.
 	Close() error
 }
 
+// Logger logs entries to a single log.
 type Logger interface {
+	// StandardLogger returns a *log.Logger for a given severity.
 	StandardLogger(severity logging.Severity) *log.Logger
+	// Log queues a single log entry.
 	Log(entry logging.Entry)
+	// Flush flushes the queued log entries.
 	Flush() error
 }

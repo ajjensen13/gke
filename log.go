@@ -8,7 +8,9 @@ import (
 	"io/ioutil"
 	stdlog "log"
 	"os"
+	"path"
 	"runtime"
+	"runtime/debug"
 
 	logpb "google.golang.org/genproto/googleapis/logging/v2"
 
@@ -26,12 +28,27 @@ func init() {
 	metadata, b := Metadata()
 	if b && metadata.OnGCE {
 		LogGke = true
+		DefaultLogID = metadata.ContainerName
 		return
 	}
+
 	LogStd = true
+	bi, ok := debug.ReadBuildInfo()
+	if ok {
+		DefaultLogID = path.Base(bi.Path)
+		return
+	}
+	DefaultLogID = os.Args[0]
 }
 
+// DefaultLogID will be metadata.Metadata().ContainerName if Metadata().OnGCE.
+// Otherwise, it will attempt to detect the name from the build info or the
+// program arguments.
+var DefaultLogID string
+
 // NewLogClient returns a log client. The context should remain open for the life of the log client.
+// Note: ctx should usually be context.Background() to ensure that the logging
+// events occur event after AliveContext() is canceled.
 func NewLogClient(ctx context.Context) (LogClient, func(), error) {
 	var result log.MultiClient
 	var cleanup = func() {}
@@ -74,14 +91,20 @@ type LogClient struct {
 	log.Client
 }
 
-func (lc LogClient) Logger(logId string, opts ...logging.LoggerOption) Logger {
+// Logger returns a new Logger. If logId is empty, then DefaultLogID is used.
+func (lc LogClient) Logger(logId string) Logger {
+	if logId == "" {
+		logId = DefaultLogID
+	}
 	return Logger{lc.Client.Logger(logId)}
 }
 
+// Logger logs entries to a single log.
 type Logger struct {
 	log.Logger
 }
 
+// StandardLogger returns a *log.Logger for a given severity.
 func (l Logger) StandardLogger(severity logging.Severity) *stdlog.Logger {
 	return l.Logger.StandardLogger(severity)
 }
@@ -94,75 +117,98 @@ func (l Logger) logPayload(severity logging.Severity, payload interface{}) {
 	l.Logger.Log(logging.Entry{Severity: severity, Payload: payload, SourceLocation: sl})
 }
 
-type payload struct {
-	Payload []interface{}
+// MsgData is a convenience type for logging a message with additional data.
+// It is provided for consistency in logging across GKE applications.
+type MsgData struct {
+	Message string      `json:"message,omitempty"`
+	Data    interface{} `json:"data,omitempty"`
 }
 
-func (l Logger) log(severity logging.Severity, args ...interface{}) {
-	l.logPayload(severity, payload{args})
+// NewMsgData returns a MsgData.
+// If len(data) == 0, then result.Data will be nil.
+// If len(data) == 1, then result.Data will be data[0] (interface{}).
+// Otherwise, result.Data will be data ([]interface{}).
+func NewMsgData(msg string, data ...interface{}) (result MsgData) {
+	switch len(data) {
+	case 0:
+		return MsgData{msg, nil}
+	case 1:
+		return MsgData{msg, data[0]}
+	default:
+		return MsgData{msg, data}
+	}
 }
 
-// Default creates a log entry with a Default severity and the args as the payload ([]interface{}).
+// NewFmtMsgData is equivalent to gke.NewMsgData(fmt.Sprintf(msg, data...), data...).
+func NewFmtMsgData(msg string, data ...interface{}) MsgData {
+	return NewMsgData(fmt.Sprintf(msg, data...), data...)
+}
+
+func (l Logger) log(severity logging.Severity, payload interface{}) {
+	l.logPayload(severity, payload)
+}
+
+// Default creates a log entry with a Default severity.
 //
 // Note: Default means the log entry has no assigned severity level.
-func (l Logger) Default(args ...interface{}) {
-	l.log(logging.Default, args)
+func (l Logger) Default(payload interface{}) {
+	l.log(logging.Default, payload)
 }
 
-// Default creates a log entry with a Debug severity and the args as the payload ([]interface{}).
+// Default creates a log entry with a Debug severity.
 //
 // Note: Debug means debug or trace information.
-func (l Logger) Debug(args ...interface{}) {
-	l.log(logging.Debug, args)
+func (l Logger) Debug(payload interface{}) {
+	l.log(logging.Debug, payload)
 }
 
-// Default creates a log entry with a Info severity and the args as the payload ([]interface{}).
+// Default creates a log entry with a Info severity.
 //
 // Note: Info means routine information, such as ongoing status or performance.
-func (l Logger) Info(args ...interface{}) {
-	l.log(logging.Info, args)
+func (l Logger) Info(payload interface{}) {
+	l.log(logging.Info, payload)
 }
 
-// Default creates a log entry with a Notice severity and the args as the payload ([]interface{}).
+// Default creates a log entry with a Notice severity.
 //
 // Note: Notice means normal but significant events, such as start up, shut down, or configuration.
-func (l Logger) Notice(args ...interface{}) {
-	l.log(logging.Notice, args)
+func (l Logger) Notice(payload interface{}) {
+	l.log(logging.Notice, payload)
 }
 
-// Default creates a log entry with a Warning severity and the args as the payload ([]interface{}).
+// Default creates a log entry with a Warning severity.
 //
 // Note: Warning means events that might cause problems.
-func (l Logger) Warning(args ...interface{}) {
-	l.log(logging.Warning, args)
+func (l Logger) Warning(payload interface{}) {
+	l.log(logging.Warning, payload)
 }
 
-// Default creates a log entry with an Error severity and the args as the payload ([]interface{}).
+// Default creates a log entry with an Error severity.
 //
 // Note: Error means events that are likely to cause problems.
-func (l Logger) Error(args ...interface{}) {
-	l.log(logging.Error, args)
+func (l Logger) Error(payload interface{}) {
+	l.log(logging.Error, payload)
 }
 
-// Default creates a log entry with a Critical severity and the args as the payload ([]interface{}).
+// Default creates a log entry with a Critical severity.
 //
 // Note: Critical means events that cause more severe problems or brief outages.
-func (l Logger) Critical(args ...interface{}) {
-	l.log(logging.Critical, args)
+func (l Logger) Critical(payload interface{}) {
+	l.log(logging.Critical, payload)
 }
 
-// Default creates a log entry with an Alert severity and the args as the payload ([]interface{}).
+// Default creates a log entry with an Alert severity.
 //
 // Note: Alert means a person must take an action immediately.
-func (l Logger) Alert(args ...interface{}) {
-	l.log(logging.Alert, args)
+func (l Logger) Alert(payload interface{}) {
+	l.log(logging.Alert, payload)
 }
 
-// Default creates a log entry with an Emergency severity and the args as the payload ([]interface{}).
+// Default creates a log entry with an Emergency severity.
 //
 // Note: Emergency means one or more systems are unusable.
-func (l Logger) Emergency(args ...interface{}) {
-	l.log(logging.Emergency, args)
+func (l Logger) Emergency(payload interface{}) {
+	l.log(logging.Emergency, payload)
 }
 
 func (l Logger) logf(severity logging.Severity, format string, args ...interface{}) string {

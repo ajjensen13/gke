@@ -29,6 +29,8 @@ func provideStorageClient(ctx context.Context) (StorageClient, func(), error) {
 	return result, func() { _ = result.Close() }, nil
 }
 
+// StorageClient wraps a new Google Cloud Storage client.
+// See: cloud.google.com/go/storage.Client
 type StorageClient interface {
 	HMACKeyHandle(projectID, accessID string) *storage.HMACKeyHandle
 	CreateHMACKey(ctx context.Context, projectID, serviceAccountEmail string, opts ...storage.HMACKeyOption) (*storage.HMACKey, error)

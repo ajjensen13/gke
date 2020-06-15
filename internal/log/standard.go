@@ -23,6 +23,7 @@ import (
 	"log"
 )
 
+// StandardClient wraps a standard logger. See *log.Logger
 type StandardClient struct {
 	writer io.Writer
 }

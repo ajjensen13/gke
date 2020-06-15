@@ -27,22 +27,45 @@ import (
 	"sync"
 )
 
+// MetadataType is structured GCE metadata.
 type MetadataType struct {
-	OnGCE              bool
-	ProjectID          string
-	InstanceID         string
-	InstanceName       string
-	ExternalIP         string
-	InternalIP         string
-	Hostname           string
-	Zone               string
-	InstanceTags       []string
-	InstanceAttributes map[string]string
-	ProjectAttributes  map[string]string
-	ClusterName        string
-	PodName            string
-	PodNamespace       string
-	PodLabels          map[string]string
+	// OnGCE comes from the metadata server
+	OnGCE bool `json:""`
+	// ProjectID comes from the metadata server
+	ProjectID string `json:",omitempty"`
+	// InstanceID comes from the metadata server
+	InstanceID string `json:",omitempty"`
+	// InstanceName comes from the metadata server
+	InstanceName string `json:",omitempty"`
+	// ExternalIP comes from the metadata server
+	ExternalIP string `json:",omitempty"`
+	// InternalIP comes from the metadata server
+	InternalIP string `json:",omitempty"`
+	// Hostname comes from the metadata server
+	Hostname string `json:",omitempty"`
+	// Zone comes from the metadata server
+	Zone string `json:",omitempty"`
+	// InstanceTags comes from the metadata server.
+	InstanceTags []string `json:",omitempty"`
+	// InstanceAttributes comes from the metadata server. It is not
+	// included in JSON serialization to prevent sending sensitive data.
+	InstanceAttributes map[string]string `json:"-,omitempty"`
+	// ProjectAttributes comes from the metadata server. It is not
+	// included in JSON serialization to prevent sending sensitive data.
+	ProjectAttributes map[string]string `json:"-,omitempty"`
+	// ClusterName comes from /etc/k8info/cluster_name.
+	ClusterName string `json:",omitempty"`
+	// PodName comes from /etc/k8info/pod_name.
+	// PodName can be provided by a Downward API volume.
+	PodName string `json:",omitempty"`
+	// PodNamespace comes from /etc/k8info/pod_namespace.
+	// PodNamespace can be provided by a Downward API volume.
+	PodNamespace string `json:",omitempty"`
+	// PodLabels comes from /etc/k8info/pod_labels.
+	// PodLabels can be provided by a Downward API volume.
+	PodLabels map[string]string `json:",omitempty"`
+	// ContainerName comes from /etc/k8info/container_name
+	ContainerName string `json:",omitempty"`
 }
 
 var (
@@ -135,6 +158,7 @@ func initMetadata() {
 	pkgMetadata.PodName = readK8InfoValue("pod_name")
 	pkgMetadata.PodNamespace = readK8InfoValue("pod_namespace")
 	pkgMetadata.PodLabels = readK8InfoValues("pod_labels")
+	pkgMetadata.ContainerName = readK8InfoValue("container_name")
 }
 
 func readK8InfoValue(name string) string {
@@ -161,10 +185,9 @@ func readK8InfoValues(name string) map[string]string {
 	return result
 }
 
-func Metadata() (*MetadataType, bool) {
+// Metadata returns a cached instance of the GCE metadata.
+// The data comes from various sources including the GCE metadata server and K8 downward API volumes.
+func Metadata() (md *MetadataType, onGCE bool) {
 	pkgMetadataOnce.Do(initMetadata)
-	if !pkgMetadata.OnGCE {
-		return nil, false
-	}
-	return &pkgMetadata, true
+	return &pkgMetadata, pkgMetadata.OnGCE
 }

@@ -20,6 +20,7 @@ package gke
 import (
 	"context"
 	"golang.org/x/sync/errgroup"
+	"log"
 	"os"
 	"os/signal"
 	"sync"
@@ -46,7 +47,8 @@ func init() {
 		signal.Notify(c, os.Interrupt, os.Kill)
 
 		select {
-		case <-c:
+		case s := <-c:
+			log.Printf("gke: signal recieved: %v", s)
 		case <-pkgErrGroupCtx.Done():
 		}
 
@@ -56,8 +58,9 @@ func init() {
 
 // Do kicks off a function that will run while the application is alive. It is passed
 // the AliveContext() context as a parameter. It should shutdown once the alive
-// context has been cancelled.
-func Do(f func(context.Context) error) {
+// context has been canceled. If f returns a non-nil error, then the alive context
+// will be canceled and other functions started via Do() will begin to shutdown.
+func Do(f func(aliveCtx context.Context) error) {
 	pkgSyncWaitGroup.Add(1)
 	pkgErrGroup.Go(func() error {
 		defer pkgSyncWaitGroup.Done()
@@ -65,13 +68,18 @@ func Do(f func(context.Context) error) {
 	})
 }
 
-// AliveContext returns a context that is used to communicate a shutdown to various parts of an application.
+// AliveContext returns a context that is used to communicate a
+// shutdown to various parts of an application.
 func AliveContext() (context.Context, context.CancelFunc) {
 	return pkgAlive, pkgAliveCancel
 }
 
-// AfterAliveContext returns a context that completes when the alive context has been cancelled and all
-// functions that were started by calling Do() have returned.
+// AfterAliveContext returns a context that completes when the alive
+// context has been canceled and all functions that were started by
+// calling Do() have returned (or the timeout expires).
+//
+//		// Note: currently this will always be true
+// 		errors.Is(AfterAliveContext(timeout).Err(), context.Canceled)
 func AfterAliveContext(timeout time.Duration) context.Context {
 	result, cancelFunc := context.WithCancel(context.Background())
 

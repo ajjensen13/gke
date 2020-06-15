@@ -23,6 +23,7 @@ import (
 	"github.com/google/wire"
 )
 
+// NewStorageClient creates a new Google Cloud Storage client.
 func NewStorageClient(ctx context.Context) (StorageClient, func(), error) {
 	panic(wire.Build(provideStorageClient))
 }

@@ -24,6 +24,8 @@ import (
 	"strings"
 )
 
+// MultiClient wraps multiple clients. Each operation on a MultiClient
+// is executed on each of its underlying clients.
 type MultiClient []Client
 
 func (mc MultiClient) Close() error {
@@ -50,6 +52,8 @@ func (mc MultiClient) Logger(logID string) Logger {
 	return result
 }
 
+// MultiLogger wraps multiple loggers. Each operation on a MultiLogger
+// is executed on each of its underlying loggers.
 type MultiLogger struct {
 	ls []Logger
 }

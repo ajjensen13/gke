@@ -25,6 +25,16 @@ import (
 	"github.com/ajjensen13/gke/internal/metadata"
 )
 
+// NewGkeClient returns a new logging client associated with the provided parent.
+// A parent can take any of the following forms:
+//    projects/PROJECT_ID
+//    folders/FOLDER_ID
+//    billingAccounts/ACCOUNT_ID
+//    organizations/ORG_ID
+// for backwards compatibility, a string with no '/' is also allowed and is interpreted
+// as a project ID.
+//
+// Note: NewGkeClient uses WriteScope.
 func NewGkeClient(ctx context.Context, parent string) (GkeClient, error) {
 	client, err := logging.NewClient(ctx, parent)
 	if err != nil {
@@ -33,10 +43,16 @@ func NewGkeClient(ctx context.Context, parent string) (GkeClient, error) {
 	return GkeClient{client}, nil
 }
 
+// GkeClient is a Logging client. A Client is associated with a single Cloud project.
 type GkeClient struct {
 	client *logging.Client
 }
 
+// Logger returns a Logger that will write entries with the given log ID, such as
+// "syslog". A log ID must be less than 512 characters long and can only
+// include the following characters: upper and lower case alphanumeric
+// characters: [A-Za-z0-9]; and punctuation characters: forward-slash,
+// underscore, hyphen, and period.
 func (g GkeClient) Logger(logID string) Logger {
 	md, _ := metadata.Metadata()
 	labels := make(map[string]string, len(md.PodLabels))
@@ -61,14 +77,19 @@ func (g GkeClient) Logger(logID string) Logger {
 	)
 }
 
+// Close waits for all opened loggers to be flushed and closes the client.
 func (g GkeClient) Close() error {
 	return g.client.Close()
 }
 
+// Ping reports whether the client's connection to the logging service and the
+// authentication configuration are valid. To accomplish this, Ping writes a
+// log entry "ping" to a log named "ping".
 func (g GkeClient) Ping(ctx context.Context) error {
 	return g.client.Ping(ctx)
 }
 
+// A GkeLogger is used to write log messages to a single log.
 type GkeLogger struct {
 	*logging.Logger
 }

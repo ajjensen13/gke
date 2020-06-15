@@ -1,3 +1,5 @@
+// +build wireinject
+
 /*
 Copyright © 2020 A. Jensen <jensen.aaro@gmail.com>
 
@@ -17,25 +19,18 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 package gke
 
 import (
-	"os"
-
-	"github.com/ajjensen13/gke/internal/metadata"
+	"context"
+	"github.com/google/wire"
 )
 
-// Metadata returns the GKE metadata if we are running on GKE.
-func Metadata() (md *metadata.MetadataType, ok bool) {
-	return metadata.Metadata()
+// NewLogger is a convenience function for providing a default logger. It creates
+// a new client, then creates a new logger with DefaultLogID.
+// Note: ctx should usually be context.Background() to ensure that the logging
+// events occur event after AliveContext() is canceled.
+func NewLogger(ctx context.Context) (lg Logger, cleanup func(), err error) {
+	panic(wire.Build(NewLogClient, provideDefaultLogger, wire.Value(DefaultLogID)))
 }
 
-// LogMetadata logs the metadata at Info severity.
-// It is provided for consistency in logging across GKE applications.
-func LogMetadata(lg Logger) {
-	md, ok := Metadata()
-	lg.Info(NewMsgData("gke.Metadata()", md, ok))
-}
-
-// LogEnv logs the environment at Info severity.
-// It is provided for consistency in logging across GKE applications.
-func LogEnv(lg Logger) {
-	lg.Info(NewMsgData("os.Environ()", os.Environ()))
+func provideDefaultLogger(client LogClient, logId string) Logger {
+	return client.Logger(logId)
 }

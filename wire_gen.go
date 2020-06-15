@@ -10,6 +10,24 @@ import (
 	"net/http"
 )
 
+// Injectors from log_wireinject.go:
+
+func NewLogger(ctx context.Context) (Logger, func(), error) {
+	logClient, cleanup, err := NewLogClient(ctx)
+	if err != nil {
+		return Logger{}, nil, err
+	}
+	string2 := _wireStringValue
+	logger := provideDefaultLogger(logClient, string2)
+	return logger, func() {
+		cleanup()
+	}, nil
+}
+
+var (
+	_wireStringValue = DefaultLogID
+)
+
 // Injectors from server_wireinject.go:
 
 func NewServer(ctx context.Context, handler http.Handler, lg Logger) (*http.Server, error) {
@@ -27,4 +45,10 @@ func NewStorageClient(ctx context.Context) (StorageClient, func(), error) {
 	return storageClient, func() {
 		cleanup()
 	}, nil
+}
+
+// log_wireinject.go:
+
+func provideDefaultLogger(client LogClient, logId string) Logger {
+	return client.Logger(logId)
 }
