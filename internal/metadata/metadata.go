@@ -39,7 +39,6 @@ type MetadataType struct {
 	InstanceTags       []string
 	InstanceAttributes map[string]string
 	ProjectAttributes  map[string]string
-	NodeName           string
 	PodName            string
 	PodNamespace       string
 	PodLabels          map[string]string
@@ -131,7 +130,6 @@ func initMetadata() {
 	}
 	pkgMetadata.Zone = zone
 
-	pkgMetadata.NodeName = readK8InfoValue("node_name")
 	pkgMetadata.PodName = readK8InfoValue("pod_name")
 	pkgMetadata.PodNamespace = readK8InfoValue("pod_namespace")
 	pkgMetadata.PodLabels = readK8InfoValues("pod_labels")
