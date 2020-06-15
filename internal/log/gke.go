@@ -39,17 +39,13 @@ type GkeClient struct {
 
 func (g GkeClient) Logger(logID string) Logger {
 	md, _ := metadata.Metadata()
-	cn, ok := os.LookupEnv("CLUSTER_NAME")
-	if !ok {
-		panic("CLUSTER_NAME variable must be set")
-	}
 	return g.client.Logger(
 		logID,
 		logging.CommonResource(&mrpb.MonitoredResource{
 			Type: "k8s_container",
 			Labels: map[string]string{
 				"pod_name":       md.PodName,
-				"cluster_name":   cn,
+				"cluster_name":   md.ClusterName,
 				"location":       md.Zone,
 				"project_id":     md.ProjectID,
 				"namespace_name": md.PodNamespace,
