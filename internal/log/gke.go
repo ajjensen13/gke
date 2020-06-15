@@ -70,7 +70,7 @@ func (g GkeClient) Logger(logID string) Logger {
 				"location":       md.Zone,
 				"project_id":     md.ProjectID,
 				"namespace_name": md.PodNamespace,
-				// TODO "container_name": md.ContainerName,
+				"container_name": md.ContainerName,
 			},
 		}),
 		logging.CommonLabels(labels),
