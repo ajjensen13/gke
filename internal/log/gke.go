@@ -45,7 +45,7 @@ func (g GkeClient) Logger(logID string) Logger {
 		ns = "default"
 	}
 	return g.client.Logger(logID, logging.CommonResource(&mrpb.MonitoredResource{
-		Type: "k8_container",
+		Type: "k8s_container",
 		Labels: map[string]string{
 			"project_id":     md.ProjectID,
 			"location":       md.Zone,
