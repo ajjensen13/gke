@@ -20,7 +20,6 @@ import (
 	"cloud.google.com/go/logging"
 	"context"
 	mrpb "google.golang.org/genproto/googleapis/api/monitoredres"
-	"os"
 
 	"github.com/ajjensen13/gke/internal/metadata"
 )
