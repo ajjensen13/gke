@@ -15,33 +15,37 @@ import (
 	logpb "google.golang.org/genproto/googleapis/logging/v2"
 
 	"github.com/ajjensen13/gke/internal/log"
+	"github.com/ajjensen13/gke/internal/metadata"
 )
 
 var (
-	// True to log to GKE. This will default to true if OnGCE() returns true
+	// True to log to GKE. This will default to true if running on GCE.
 	LogGke bool
-	// True to log to the standard logger. This will default to true if OnGCE() returns false
+	// True to log to the standard logger. This will default to true if not running on GCE.
 	LogStd bool
 )
 
 func init() {
-	metadata, b := Metadata()
-	if b && metadata.OnGCE {
+	md, err := Metadata()
+	switch {
+	case err == nil:
 		LogGke = true
-		DefaultLogID = metadata.ContainerName
-		return
+		DefaultLogID = md.ContainerName
+	case errors.Is(err, metadata.ErrNotOnGCE):
+		LogStd = true
+		bi, ok := debug.ReadBuildInfo()
+		if ok {
+			DefaultLogID = path.Base(bi.Path)
+		}
+		if DefaultLogID == "" {
+			DefaultLogID = os.Args[0]
+		}
+	default:
+		panic(fmt.Errorf("failed to setup logging: %w", err))
 	}
-
-	LogStd = true
-	bi, ok := debug.ReadBuildInfo()
-	if ok {
-		DefaultLogID = path.Base(bi.Path)
-		return
-	}
-	DefaultLogID = os.Args[0]
 }
 
-// DefaultLogID will be metadata.Metadata().ContainerName if Metadata().OnGCE.
+// DefaultLogID will be metadata.Metadata().ContainerName if running on GCE.
 // Otherwise, it will attempt to detect the name from the build info or the
 // program arguments.
 var DefaultLogID string
@@ -54,12 +58,12 @@ func NewLogClient(ctx context.Context) (LogClient, func(), error) {
 	var cleanup = func() {}
 
 	if LogGke {
-		metadata, b := Metadata()
-		if !b {
-			return LogClient{}, nil, errors.New("LogGke is true, but metadata cannot be found")
+		md, err := Metadata()
+		if err != nil {
+			return LogClient{}, nil, fmt.Errorf("LogGke is true, but metadata cannot be found: %w", err)
 		}
 
-		parent := metadata.ProjectID
+		parent := md.ProjectID
 		client, err := log.NewGkeClient(ctx, "projects/"+parent)
 		if err != nil {
 			return LogClient{}, func() {}, err

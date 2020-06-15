@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"bytes"
 	"cloud.google.com/go/compute/metadata"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
@@ -70,108 +71,154 @@ type MetadataType struct {
 
 var (
 	pkgMetadata     MetadataType
+	pkgMetadataErr  error
 	pkgMetadataOnce sync.Once
+)
+
+var (
+	// ErrNotOnGCE is returned when requesting metadata while not on GCE.
+	ErrNotOnGCE = errors.New("not on GCE")
 )
 
 func initMetadata() {
 	pkgMetadata.OnGCE = metadata.OnGCE()
 	if !pkgMetadata.OnGCE {
+		pkgMetadataErr = ErrNotOnGCE
 		return
 	}
 
 	pid, err := metadata.ProjectID()
 	if err != nil {
-		panic(err)
+		pkgMetadataErr = fmt.Errorf("failed to initialize ProjectID: %w", err)
+		return
 	}
 	pkgMetadata.ProjectID = pid
 
 	iid, err := metadata.InstanceID()
 	if err != nil {
-		panic(err)
+		pkgMetadataErr = fmt.Errorf("failed to initialize InstanceID: %w", err)
+		return
 	}
 	pkgMetadata.InstanceID = iid
 
 	instName, err := metadata.InstanceName()
 	if err != nil {
-		panic(err)
+		pkgMetadataErr = fmt.Errorf("failed to initialize InstanceName: %w", err)
+		return
 	}
 	pkgMetadata.InstanceName = instName
 
 	exIP, err := metadata.ExternalIP()
 	if err != nil {
-		panic(err)
+		pkgMetadataErr = fmt.Errorf("failed to initialize ExternalIP: %w", err)
+		return
 	}
 	pkgMetadata.ExternalIP = exIP
 
 	inIP, err := metadata.InternalIP()
 	if err != nil {
-		panic(err)
+		pkgMetadataErr = fmt.Errorf("failed to initialize InternalIP: %w", err)
+		return
 	}
 	pkgMetadata.InternalIP = inIP
 
 	host, err := metadata.Hostname()
 	if err != nil {
-		panic(err)
+		pkgMetadataErr = fmt.Errorf("failed to initialize Hostname: %w", err)
+		return
 	}
 	pkgMetadata.Hostname = host
 
 	vals, err := metadata.InstanceAttributes()
 	if err != nil {
-		panic(err)
+		pkgMetadataErr = fmt.Errorf("failed to initialize InstanceAttributes: %w", err)
+		return
 	}
 	pkgMetadata.InstanceAttributes = make(map[string]string, len(vals))
 
 	for _, val := range vals {
 		v, err := metadata.InstanceAttributeValue(val)
 		if err != nil {
-			panic(err)
+			pkgMetadataErr = fmt.Errorf("failed to initialize InstanceAttributesValue %s: %w", v, err)
+			return
 		}
 		pkgMetadata.InstanceAttributes[val] = v
 	}
 
 	instTags, err := metadata.InstanceTags()
 	if err != nil {
-		panic(err)
+		pkgMetadataErr = fmt.Errorf("failed to initialize InstanceTags: %w", err)
+		return
 	}
 	pkgMetadata.InstanceTags = instTags
 
 	vals, err = metadata.ProjectAttributes()
 	if err != nil {
-		panic(err)
+		pkgMetadataErr = fmt.Errorf("failed to initialize ProjectAttributes: %w", err)
+		return
 	}
 	pkgMetadata.ProjectAttributes = make(map[string]string, len(vals))
 	for _, val := range vals {
 		v, err := metadata.ProjectAttributeValue(val)
 		if err != nil {
-			panic(err)
+			pkgMetadataErr = fmt.Errorf("failed to initialize ProjectAttributeValue %s: %w", v, err)
+			return
 		}
 		pkgMetadata.ProjectAttributes[val] = v
 	}
 
 	zone, err := metadata.Zone()
 	if err != nil {
-		panic(err)
+		pkgMetadataErr = fmt.Errorf("failed to initialize Zone: %w", err)
+		return
 	}
 	pkgMetadata.Zone = zone
 
-	pkgMetadata.ClusterName = readK8InfoValue("cluster_name")
-	pkgMetadata.PodName = readK8InfoValue("pod_name")
-	pkgMetadata.PodNamespace = readK8InfoValue("pod_namespace")
-	pkgMetadata.PodLabels = readK8InfoValues("pod_labels")
-	pkgMetadata.ContainerName = readK8InfoValue("container_name")
+	pkgMetadata.ClusterName, err = readK8InfoValue("cluster_name")
+	if err != nil {
+		pkgMetadataErr = fmt.Errorf("failed to initialize ClusterName: %w", err)
+		return
+	}
+
+	pkgMetadata.PodName, err = readK8InfoValue("pod_name")
+	if err != nil {
+		pkgMetadataErr = fmt.Errorf("failed to initialize PodName: %w", err)
+		return
+	}
+
+	pkgMetadata.PodNamespace, err = readK8InfoValue("pod_namespace")
+	if err != nil {
+		pkgMetadataErr = fmt.Errorf("failed to initialize PodNamespace: %w", err)
+		return
+	}
+
+	pkgMetadata.PodLabels, err = readK8InfoValues("pod_labels")
+	if err != nil {
+		pkgMetadataErr = fmt.Errorf("failed to initialize PodLabels: %w", err)
+		return
+	}
+
+	pkgMetadata.ContainerName, err = readK8InfoValue("container_name")
+	if err != nil {
+		pkgMetadataErr = fmt.Errorf("failed to initialize ContainerName: %w", err)
+		return
+	}
 }
 
-func readK8InfoValue(name string) string {
+func readK8InfoValue(name string) (string, error) {
 	p := filepath.Join("/etc/k8info", name)
 	val, err := ioutil.ReadFile(p)
 	if err != nil {
-		panic(fmt.Errorf("error reading %s: %w", name, err))
+		return "", err
 	}
-	return string(val)
+	return string(val), nil
 }
 
-func readK8InfoValues(name string) map[string]string {
-	v := readK8InfoValue(name)
+func readK8InfoValues(name string) (map[string]string, error) {
+	v, err := readK8InfoValue(name)
+	if err != nil {
+		return nil, err
+	}
 
 	result := map[string]string{}
 	for s := bufio.NewScanner(strings.NewReader(v)); s.Scan(); {
@@ -182,12 +229,12 @@ func readK8InfoValues(name string) map[string]string {
 		result[key] = val
 	}
 
-	return result
+	return result, nil
 }
 
-// Metadata returns a cached instance of the GCE metadata.
+// Metadata returns a cached instance of the GCE metadata. If not on GCE, Metadata() returns ErrNotOnGCE.
 // The data comes from various sources including the GCE metadata server and K8 downward API volumes.
-func Metadata() (md *MetadataType, onGCE bool) {
+func Metadata() (md *MetadataType, err error) {
 	pkgMetadataOnce.Do(initMetadata)
-	return &pkgMetadata, pkgMetadata.OnGCE
+	return &pkgMetadata, pkgMetadataErr
 }

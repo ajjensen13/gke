@@ -23,7 +23,7 @@ import (
 )
 
 // Metadata returns the GKE metadata if we are running on GKE.
-func Metadata() (md *metadata.MetadataType, ok bool) {
+func Metadata() (md *metadata.MetadataType, err error) {
 	return metadata.Metadata()
 }
 

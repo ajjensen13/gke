@@ -19,6 +19,7 @@ package log
 import (
 	"cloud.google.com/go/logging"
 	"context"
+	"fmt"
 	mrpb "google.golang.org/genproto/googleapis/api/monitoredres"
 	"strings"
 
@@ -54,7 +55,10 @@ type GkeClient struct {
 // characters: [A-Za-z0-9]; and punctuation characters: forward-slash,
 // underscore, hyphen, and period.
 func (g GkeClient) Logger(logID string) Logger {
-	md, _ := metadata.Metadata()
+	md, err := metadata.Metadata()
+	if err != nil {
+		panic(fmt.Errorf("failed to create GkeClient: %w", err))
+	}
 	labels := make(map[string]string, len(md.PodLabels))
 	for k, v := range md.PodLabels {
 		k = "k8s-pod/" + strings.ReplaceAll(k, ".", "_")
