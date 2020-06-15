@@ -88,8 +88,12 @@ func (l Logger) logPayload(severity logging.Severity, payload interface{}) {
 	l.Logger.Log(logging.Entry{Severity: severity, Payload: payload, SourceLocation: sl})
 }
 
+type payload struct {
+	Payload []interface{}
+}
+
 func (l Logger) log(severity logging.Severity, args ...interface{}) {
-	l.logPayload(severity, args)
+	l.logPayload(severity, payload{args})
 }
 
 // Default creates a log entry with a Default severity and the args as the payload ([]interface{}).
