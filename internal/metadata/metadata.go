@@ -17,7 +17,13 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 package metadata
 
 import (
+	"bufio"
+	"bytes"
 	"cloud.google.com/go/compute/metadata"
+	"fmt"
+	"io/ioutil"
+	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -33,6 +39,10 @@ type MetadataType struct {
 	InstanceTags       []string
 	InstanceAttributes map[string]string
 	ProjectAttributes  map[string]string
+	NodeName           string
+	PodName            string
+	PodNamespace       string
+	PodLabels          map[string]string
 }
 
 var (
@@ -120,9 +130,41 @@ func initMetadata() {
 		panic(err)
 	}
 	pkgMetadata.Zone = zone
+
+	pkgMetadata.NodeName = readK8InfoValue("node_name")
+	pkgMetadata.PodName = readK8InfoValue("pod_name")
+	pkgMetadata.PodNamespace = readK8InfoValue("pod_namespace")
+	pkgMetadata.PodLabels = readK8InfoValues("pod_labels")
 }
 
-func Metadata() *MetadataType {
+func readK8InfoValue(name string) string {
+	p := filepath.Join("/etc", name)
+	val, err := ioutil.ReadFile(p)
+	if err != nil {
+		panic(fmt.Errorf("error reading %s: %w", name, err))
+	}
+	return string(val)
+}
+
+func readK8InfoValues(name string) map[string]string {
+	v := readK8InfoValue(name)
+
+	result := map[string]string{}
+	for s := bufio.NewScanner(strings.NewReader(v)); s.Scan(); {
+		t := s.Bytes()
+		eq := bytes.IndexRune(t, '=')
+		key := string(t[:eq])
+		val := string(bytes.Trim(bytes.TrimSpace(t[eq+1:]), "\""))
+		result[key] = val
+	}
+
+	return result
+}
+
+func Metadata() (*MetadataType, bool) {
 	pkgMetadataOnce.Do(initMetadata)
-	return &pkgMetadata
+	if !pkgMetadata.OnGCE {
+		return nil, false
+	}
+	return &pkgMetadata, true
 }

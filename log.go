@@ -3,6 +3,7 @@ package gke
 import (
 	"cloud.google.com/go/logging"
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	stdlog "log"
@@ -22,7 +23,8 @@ var (
 )
 
 func init() {
-	if Metadata().OnGCE {
+	metadata, b := Metadata()
+	if b && metadata.OnGCE {
 		LogGke = true
 		return
 	}
@@ -35,7 +37,12 @@ func NewLogClient(ctx context.Context) (LogClient, func(), error) {
 	var cleanup = func() {}
 
 	if LogGke {
-		parent := Metadata().ProjectID
+		metadata, b := Metadata()
+		if !b {
+			return LogClient{}, nil, errors.New("LogGke is true, but metadata cannot be found")
+		}
+
+		parent := metadata.ProjectID
 		client, err := log.NewGkeClient(ctx, "projects/"+parent)
 		if err != nil {
 			return LogClient{}, func() {}, err
@@ -47,7 +54,6 @@ func NewLogClient(ctx context.Context) (LogClient, func(), error) {
 		result = append(result, client)
 		prevCleanup := cleanup
 		cleanup = func() { prevCleanup(); _ = client.Close() }
-
 	}
 
 	if LogStd {

@@ -38,21 +38,26 @@ type GkeClient struct {
 }
 
 func (g GkeClient) Logger(logID string) Logger {
-	md := metadata.Metadata()
-	cn, _ := os.LookupEnv("CLUSTER_NAME")
-	ns, ok := os.LookupEnv("NAMESPACE_NAME")
+	md, _ := metadata.Metadata()
+	cn, ok := os.LookupEnv("CLUSTER_NAME")
 	if !ok {
-		ns = "default"
+		panic("CLUSTER_NAME variable must be set")
 	}
-	return g.client.Logger(logID, logging.CommonResource(&mrpb.MonitoredResource{
-		Type: "k8s_container",
-		Labels: map[string]string{
-			"project_id":     md.ProjectID,
-			"location":       md.Zone,
-			"cluster_name":   cn,
-			"namespace_name": ns,
-		},
-	}))
+	return g.client.Logger(
+		logID,
+		logging.CommonResource(&mrpb.MonitoredResource{
+			Type: "k8s_container",
+			Labels: map[string]string{
+				"pod_name":       md.PodName,
+				"cluster_name":   cn,
+				"location":       md.Zone,
+				"project_id":     md.ProjectID,
+				"namespace_name": md.PodNamespace,
+				// TODO "container_name": md.ContainerName,
+			},
+		}),
+		logging.CommonLabels(md.PodLabels),
+	)
 }
 
 func (g GkeClient) Close() error {

@@ -20,6 +20,6 @@ import (
 	"github.com/ajjensen13/gke/internal/metadata"
 )
 
-func Metadata() *metadata.MetadataType {
+func Metadata() (*metadata.MetadataType, bool) {
 	return metadata.Metadata()
 }
