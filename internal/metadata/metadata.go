@@ -136,7 +136,7 @@ func initMetadata() {
 }
 
 func readK8InfoValue(name string) string {
-	p := filepath.Join("/etc", name)
+	p := filepath.Join("/etc/k8info", name)
 	val, err := ioutil.ReadFile(p)
 	if err != nil {
 		panic(fmt.Errorf("error reading %s: %w", name, err))
