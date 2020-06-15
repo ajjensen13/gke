@@ -28,7 +28,7 @@ import (
 // Note: ctx should usually be context.Background() to ensure that the logging
 // events occur event after AliveContext() is canceled.
 func NewLogger(ctx context.Context) (lg Logger, cleanup func(), err error) {
-	panic(wire.Build(NewLogClient, provideDefaultLogger, wire.Value(DefaultLogID)))
+	panic(wire.Build(NewLogClient, provideDefaultLogger, DefaultLogID))
 }
 
 func provideDefaultLogger(client LogClient, logId string) Logger {

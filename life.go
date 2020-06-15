@@ -29,6 +29,7 @@ import (
 )
 
 var (
+	pkgAliveOnce     sync.Once // protects below
 	pkgAlive         context.Context
 	pkgAliveCancel   context.CancelFunc
 	pkgErrGroup      *errgroup.Group
@@ -36,7 +37,7 @@ var (
 	pkgSyncWaitGroup sync.WaitGroup
 )
 
-func init() {
+func initAlive() {
 	pkgAlive, pkgAliveCancel = context.WithCancel(context.Background())
 	pkgErrGroup, pkgErrGroupCtx = errgroup.WithContext(pkgAlive)
 
@@ -61,6 +62,7 @@ func init() {
 // context has been canceled. If f returns a non-nil error, then the alive context
 // will be canceled and other functions started via Do() will begin to shutdown.
 func Do(f func(aliveCtx context.Context) error) {
+	pkgAliveOnce.Do(initAlive)
 	pkgSyncWaitGroup.Add(1)
 	pkgErrGroup.Go(func() error {
 		defer pkgSyncWaitGroup.Done()
@@ -71,6 +73,7 @@ func Do(f func(aliveCtx context.Context) error) {
 // AliveContext returns a context that is used to communicate a
 // shutdown to various parts of an application.
 func AliveContext() (context.Context, context.CancelFunc) {
+	pkgAliveOnce.Do(initAlive)
 	return pkgAlive, pkgAliveCancel
 }
 
@@ -81,6 +84,7 @@ func AliveContext() (context.Context, context.CancelFunc) {
 //		// Note: currently this will always be true
 // 		errors.Is(AfterAliveContext(timeout).Err(), context.Canceled)
 func AfterAliveContext(timeout time.Duration) context.Context {
+	pkgAliveOnce.Do(initAlive)
 	result, cancelFunc := context.WithCancel(context.Background())
 
 	wf := int32(0)

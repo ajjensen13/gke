@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	stdlog "log"
 	"os"
 	"path"
@@ -18,51 +17,35 @@ import (
 	"github.com/ajjensen13/gke/internal/metadata"
 )
 
-var (
-	// True to log to GKE. This will default to true if running on GCE.
-	LogGke bool
-	// True to log to the standard logger. This will default to true if not running on GCE.
-	LogStd bool
-)
-
-func init() {
-	md, err := Metadata()
-	switch {
-	case err == nil:
-		LogGke = true
-		DefaultLogID = md.ContainerName
-	case errors.Is(err, metadata.ErrNotOnGCE):
-		LogStd = true
-		bi, ok := debug.ReadBuildInfo()
-		if ok {
-			DefaultLogID = path.Base(bi.Path)
-		}
-		if DefaultLogID == "" {
-			DefaultLogID = os.Args[0]
-		}
-	default:
-		panic(fmt.Errorf("failed to setup logging: %w", err))
-	}
-}
-
 // DefaultLogID will be metadata.Metadata().ContainerName if running on GCE.
 // Otherwise, it will attempt to detect the name from the build info or the
 // program arguments.
-var DefaultLogID string
+func DefaultLogID() (string, error) {
+	md, err := Metadata()
+	switch {
+	case errors.Is(err, metadata.ErrNotOnGCE):
+		bi, ok := debug.ReadBuildInfo()
+		if ok {
+			return path.Base(bi.Path), nil
+		}
+		return os.Args[0], nil
+	case err == nil:
+		return md.ContainerName, nil
+	default:
+		return "", fmt.Errorf("failed to determine default log id: %w", err)
+	}
+}
 
 // NewLogClient returns a log client. The context should remain open for the life of the log client.
 // Note: ctx should usually be context.Background() to ensure that the logging
 // events occur event after AliveContext() is canceled.
-func NewLogClient(ctx context.Context) (LogClient, func(), error) {
-	var result log.MultiClient
-	var cleanup = func() {}
-
-	if LogGke {
-		md, err := Metadata()
-		if err != nil {
-			return LogClient{}, nil, fmt.Errorf("LogGke is true, but metadata cannot be found: %w", err)
-		}
-
+func NewLogClient(ctx context.Context) (client LogClient, cleanup func(), err error) {
+	md, err := Metadata()
+	switch {
+	case errors.Is(err, metadata.ErrNotOnGCE):
+		client := log.NewStandardClient(os.Stderr)
+		return LogClient{client}, func() { _ = client.Close() }, nil
+	case err == nil:
 		parent := md.ProjectID
 		client, err := log.NewGkeClient(ctx, "projects/"+parent)
 		if err != nil {
@@ -72,34 +55,18 @@ func NewLogClient(ctx context.Context) (LogClient, func(), error) {
 		if err != nil {
 			return LogClient{}, func() {}, err
 		}
-		result = append(result, client)
-		prevCleanup := cleanup
-		cleanup = func() { prevCleanup(); _ = client.Close() }
+		return LogClient{client}, func() { _ = client.Close() }, nil
+	default:
+		return LogClient{}, func() {}, fmt.Errorf("failed to create logging client: %w", err)
 	}
-
-	if LogStd {
-		client := log.NewStandardClient(os.Stderr)
-		result = append(result, client)
-		prevCleanup := cleanup
-		cleanup = func() { prevCleanup(); _ = client.Close() }
-	}
-
-	if len(result) == 0 {
-		result = append(result, log.NewStandardClient(ioutil.Discard))
-	}
-
-	return LogClient{result}, cleanup, nil
 }
 
 type LogClient struct {
 	log.Client
 }
 
-// Logger returns a new Logger. If logId is empty, then DefaultLogID is used.
+// Logger returns a new Logger.
 func (lc LogClient) Logger(logId string) Logger {
-	if logId == "" {
-		logId = DefaultLogID
-	}
 	return Logger{lc.Client.Logger(logId)}
 }
 

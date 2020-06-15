@@ -17,16 +17,16 @@ func NewLogger(ctx context.Context) (Logger, func(), error) {
 	if err != nil {
 		return Logger{}, nil, err
 	}
-	string2 := _wireStringValue
+	string2, err := DefaultLogID()
+	if err != nil {
+		cleanup()
+		return Logger{}, nil, err
+	}
 	logger := provideDefaultLogger(logClient, string2)
 	return logger, func() {
 		cleanup()
 	}, nil
 }
-
-var (
-	_wireStringValue = DefaultLogID
-)
 
 // Injectors from server_wireinject.go:
 
