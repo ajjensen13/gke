@@ -22,7 +22,7 @@ import (
 )
 
 type Client interface {
-	Logger(logID string, opts ...logging.LoggerOption) Logger
+	Logger(logID string) Logger
 	Close() error
 }
 

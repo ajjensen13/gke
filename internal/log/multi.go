@@ -42,7 +42,7 @@ func (mc MultiClient) Close() error {
 	return nil
 }
 
-func (mc MultiClient) Logger(logID string, opts ...logging.LoggerOption) Logger {
+func (mc MultiClient) Logger(logID string) Logger {
 	result := MultiLogger{make([]Logger, 0, len(mc))}
 	for _, c := range mc {
 		result.ls = append(result.ls, c.Logger(logID))

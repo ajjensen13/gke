@@ -31,7 +31,7 @@ func NewStandardClient(writer io.Writer) Client {
 	return StandardClient{writer}
 }
 
-func (s StandardClient) Logger(logID string, _ ...logging.LoggerOption) Logger {
+func (s StandardClient) Logger(logID string) Logger {
 	return newStdLogger(s.writer, logID)
 }
 

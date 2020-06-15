@@ -69,7 +69,7 @@ type LogClient struct {
 }
 
 func (lc LogClient) Logger(logId string, opts ...logging.LoggerOption) Logger {
-	return Logger{lc.Client.Logger(logId, opts...)}
+	return Logger{lc.Client.Logger(logId)}
 }
 
 type Logger struct {
