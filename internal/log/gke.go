@@ -19,6 +19,10 @@ package log
 import (
 	"cloud.google.com/go/logging"
 	"context"
+	mrpb "google.golang.org/genproto/googleapis/api/monitoredres"
+	"os"
+
+	"github.com/ajjensen13/gke/internal/metadata"
 )
 
 func NewGkeClient(ctx context.Context, parent string) (GkeClient, error) {
@@ -33,8 +37,22 @@ type GkeClient struct {
 	client *logging.Client
 }
 
-func (g GkeClient) Logger(logID string, opts ...logging.LoggerOption) Logger {
-	return g.client.Logger(logID, opts...)
+func (g GkeClient) Logger(logID string) Logger {
+	md := metadata.Metadata()
+	cn, _ := os.LookupEnv("CLUSTER_NAME")
+	ns, ok := os.LookupEnv("NAMESPACE_NAME")
+	if !ok {
+		ns = "default"
+	}
+	return g.client.Logger(logID, logging.CommonResource(&mrpb.MonitoredResource{
+		Type: "k8_container",
+		Labels: map[string]string{
+			"project_id":     md.ProjectID,
+			"location":       md.Zone,
+			"cluster_name":   cn,
+			"namespace_name": ns,
+		},
+	}))
 }
 
 func (g GkeClient) Close() error {
