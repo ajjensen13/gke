@@ -57,11 +57,11 @@ func initAlive() {
 	}()
 }
 
-// Do kicks off a function that will run while the application is alive. It is passed
+// Go kicks off a function that will run while the application is alive. It is passed
 // the AliveContext() context as a parameter. It should shutdown once the alive
 // context has been canceled. If f returns a non-nil error, then the alive context
 // will be canceled and other functions started via Do() will begin to shutdown.
-func Do(f func(aliveCtx context.Context) error) {
+func Go(f func(aliveCtx context.Context) error) {
 	pkgAliveOnce.Do(initAlive)
 	pkgSyncWaitGroup.Add(1)
 	pkgErrGroup.Go(func() error {

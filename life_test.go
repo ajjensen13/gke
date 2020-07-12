@@ -34,7 +34,7 @@ func ExampleAliveContext() {
 	fmt.Println("0 started")
 
 	// Cleans up gracefully after aliveCtx is canceled
-	gke.Do(func(ctx context.Context) error {
+	gke.Go(func(ctx context.Context) error {
 		fmt.Println("1 started")
 		c <- false // send 1
 		<-ctx.Done()
@@ -45,7 +45,7 @@ func ExampleAliveContext() {
 	<-c // receive 1
 
 	// Cleans up gracefully after finishing work
-	gke.Do(func(ctx context.Context) error {
+	gke.Go(func(ctx context.Context) error {
 		defer func() { c <- false }() // send 2
 		fmt.Println("2 started")
 		// Do work
@@ -56,7 +56,7 @@ func ExampleAliveContext() {
 	<-c // receive 2
 
 	// Returns error signalling the end of the ready phase
-	gke.Do(func(ctx context.Context) error {
+	gke.Go(func(ctx context.Context) error {
 		fmt.Println("3 started")
 		c <- false // send 3
 		<-c        // receive 4
@@ -96,7 +96,7 @@ func ExampleAliveContext_WithLogger() {
 	gke.LogEnv(lg)
 	gke.LogMetadata(lg)
 
-	gke.Do(func(aliveCtx context.Context) error {
+	gke.Go(func(aliveCtx context.Context) error {
 		<-time.After(time.Second)
 		return nil
 	})
