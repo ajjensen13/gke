@@ -70,6 +70,13 @@ func Go(f func(aliveCtx context.Context) error) {
 	})
 }
 
+// Wait blocks until all function calls from the Go() function have returned, then
+// returns the first non-nil error (if any) from them.
+func Wait() error {
+	pkgAliveOnce.Do(initAlive)
+	return pkgErrGroup.Wait()
+}
+
 // AliveContext returns a context that is used to communicate a
 // shutdown to various parts of an application.
 func AliveContext() (context.Context, context.CancelFunc) {
