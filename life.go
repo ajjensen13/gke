@@ -60,7 +60,7 @@ func initAlive() {
 // Go kicks off a function that will run while the application is alive. It is passed
 // the AliveContext() context as a parameter. It should shutdown once the alive
 // context has been canceled. If f returns a non-nil error, then the alive context
-// will be canceled and other functions started via Do() will begin to shutdown.
+// will be canceled and other functions started via Go() will begin to shutdown.
 func Go(f func(aliveCtx context.Context) error) {
 	pkgAliveOnce.Do(initAlive)
 	pkgSyncWaitGroup.Add(1)
@@ -86,7 +86,7 @@ func AliveContext() (context.Context, context.CancelFunc) {
 
 // AfterAliveContext returns a context that completes when the alive
 // context has been canceled and all functions that were started by
-// calling Do() have returned (or the timeout expires).
+// calling Go() have returned (or the timeout expires).
 //
 //		// Note: currently this will always be true
 // 		errors.Is(AfterAliveContext(timeout).Err(), context.Canceled)

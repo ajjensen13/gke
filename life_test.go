@@ -26,7 +26,7 @@ import (
 	"github.com/ajjensen13/gke"
 )
 
-// ExampleAliveContext demonstrates how to use gke.Do() and
+// ExampleAliveContext demonstrates how to use gke.Go() and
 // gke.AfterAliveContext() together to coordinate a graceful
 // shutdown
 func ExampleAliveContext() {
@@ -84,7 +84,7 @@ func ExampleAliveContext() {
 	// 0 stopped: cleanup complete
 }
 
-// ExampleAliveContext_WithLogger demonstrates how to use gke.Do()
+// ExampleAliveContext_WithLogger demonstrates how to use gke.Go()
 // gke.NewLogger, and gke.AfterAliveContext together.
 func ExampleAliveContext_WithLogger() {
 	lg, cleanup, err := gke.NewLogger(context.Background())
