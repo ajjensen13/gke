@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"path"
 )
 
 // StandardClient wraps a standard logger. See *log.Logger
@@ -70,8 +71,8 @@ func newStdLogger(writer io.Writer, logId string) *standardLogger {
 }
 
 func (s *standardLogger) setLoggerForSeverity(writer io.Writer, severity logging.Severity, logId string) {
-	const flags = log.Ldate | log.Ltime | log.Lshortfile | log.Lmsgprefix
-	s.bySeverity[severity] = log.New(writer, fmt.Sprintf("%s %s ", logId, severity.String()), flags)
+	const flags = log.Ldate | log.Ltime
+	s.bySeverity[severity] = log.New(writer, "", flags)
 }
 
 // StandardLogger implements log.Logger.StandardLogger().
@@ -82,7 +83,9 @@ func (s *standardLogger) StandardLogger(severity logging.Severity) *log.Logger {
 // StandardLogger implements log.Logger.Log().
 func (s *standardLogger) Log(entry logging.Entry) {
 	if l, ok := s.bySeverity[entry.Severity]; ok {
-		_ = l.Output(6, fmt.Sprintf("%v", entry.Payload))
+		file := path.Base(entry.SourceLocation.File)
+
+		_ = l.Output(5, fmt.Sprintf("%s %7s %v:%v %v", s.logId, entry.Severity, file, entry.SourceLocation.Line, entry.Payload))
 		return
 	}
 

@@ -99,8 +99,12 @@ func (l Logger) StandardLogger(severity logging.Severity) *stdlog.Logger {
 
 func (l Logger) logPayload(severity logging.Severity, payload interface{}) {
 	var sl *logpb.LogEntrySourceLocation
-	if _, file, line, ok := runtime.Caller(2); ok {
-		sl = &logpb.LogEntrySourceLocation{File: file, Line: int64(line)}
+	var cis [1]uintptr
+	c := runtime.Callers(4, cis[:])
+	if c > 0 {
+		fs := runtime.CallersFrames(cis[:])
+		f, _ := fs.Next()
+		sl = &logpb.LogEntrySourceLocation{File: f.File, Line: int64(f.Line), Function: f.Function}
 	}
 	l.Logger.Log(logging.Entry{Severity: severity, Payload: payload, SourceLocation: sl})
 }
