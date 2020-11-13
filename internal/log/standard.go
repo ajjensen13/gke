@@ -19,6 +19,7 @@ package log
 
 import (
 	"cloud.google.com/go/logging"
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -49,6 +50,26 @@ func (s StandardClient) Close() error {
 type standardLogger struct {
 	logId      string
 	bySeverity map[logging.Severity]*log.Logger
+}
+
+func (s *standardLogger) LogSync(_ context.Context, entry logging.Entry) error {
+	if l, ok := s.bySeverity[entry.Severity]; ok {
+		file := path.Base(entry.SourceLocation.File)
+
+		err := l.Output(5, fmt.Sprintf("%s %7s %v:%v %v", s.logId, entry.Severity, file, entry.SourceLocation.Line, entry.Payload))
+		if err != nil {
+			return err
+		}
+
+		err = s.Flush()
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	panic(fmt.Errorf("unknown log severity: %v", entry.Severity))
 }
 
 func newStdLogger(writer io.Writer, logId string) *standardLogger {

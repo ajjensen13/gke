@@ -19,6 +19,7 @@ package log
 
 import (
 	"cloud.google.com/go/logging"
+	"context"
 	"log"
 )
 
@@ -38,4 +39,6 @@ type Logger interface {
 	Log(entry logging.Entry)
 	// Flush flushes the queued log entries.
 	Flush() error
+	// LogSync logs the Entry synchronously.
+	LogSync(ctx context.Context, entry logging.Entry) error
 }
