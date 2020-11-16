@@ -49,9 +49,9 @@ func LogEnv(lg Logger) {
 	lg.Info(NewMsgData("gke.LogEnv()", os.Environ()))
 }
 
-// LogGoEnv logs runtime information at Info severity.
+// LogGoRuntime logs runtime information at Info severity.
 // It is provided for consistency in logging across GKE applications.
-func LogGoEnv(lg Logger) {
+func LogGoRuntime(lg Logger) {
 	data := map[string]interface{}{
 		"runtime.NumCPU":     runtime.NumCPU(),
 		"runtime.Compiler":   runtime.Compiler,
@@ -60,5 +60,5 @@ func LogGoEnv(lg Logger) {
 		"runtime.GOOS":       runtime.GOOS,
 		"runtime.GOMAXPROCS": runtime.GOMAXPROCS(0),
 	}
-	lg.Info(NewMsgData("gke.LogGoEnv()", data))
+	lg.Info(NewMsgData("gke.LogGoRuntime()", data))
 }
