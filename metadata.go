@@ -19,6 +19,7 @@ package gke
 
 import (
 	"os"
+	"runtime"
 
 	"github.com/ajjensen13/gke/internal/metadata"
 )
@@ -38,12 +39,26 @@ func Metadata() (md *MetadataType, err error) {
 // LogMetadata logs the metadata at Info severity.
 // It is provided for consistency in logging across GKE applications.
 func LogMetadata(lg Logger) {
-	md, ok := Metadata()
-	lg.Info(NewMsgData("gke.Metadata()", md, ok))
+	md, err := Metadata()
+	lg.Info(NewMsgData("gke.LogMetadata()", md, err))
 }
 
 // LogEnv logs the environment at Info severity.
 // It is provided for consistency in logging across GKE applications.
 func LogEnv(lg Logger) {
-	lg.Info(NewMsgData("os.Environ()", os.Environ()))
+	lg.Info(NewMsgData("gke.LogEnv()", os.Environ()))
+}
+
+// LogGoEnv logs runtime information at Info severity.
+// It is provided for consistency in logging across GKE applications.
+func LogGoEnv(lg Logger) {
+	data := map[string]interface{}{
+		"runtime.NumCPU":     runtime.NumCPU(),
+		"runtime.Compiler":   runtime.Compiler,
+		"runtime.Version":    runtime.Version(),
+		"runtime.GOARCH":     runtime.GOARCH,
+		"runtime.GOOS":       runtime.GOOS,
+		"runtime.GOMAXPROCS": runtime.GOMAXPROCS(0),
+	}
+	lg.Info(NewMsgData("gke.LogGoEnv()", data))
 }
