@@ -109,6 +109,20 @@ func (l Logger) logPayload(severity logging.Severity, payload interface{}) {
 	l.Logger.Log(logging.Entry{Severity: severity, Payload: payload, SourceLocation: sl})
 }
 
+func (l Logger) logPayloadSync(ctx context.Context, entry logging.Entry) error {
+	if entry.SourceLocation == nil {
+		var cis [1]uintptr
+		c := runtime.Callers(3, cis[:])
+		if c > 0 {
+			fs := runtime.CallersFrames(cis[:])
+			f, _ := fs.Next()
+			entry.SourceLocation = &logpb.LogEntrySourceLocation{File: f.File, Line: int64(f.Line), Function: f.Function}
+		}
+	}
+
+	return l.Logger.LogSync(ctx, entry)
+}
+
 // MsgData is a convenience type for logging a message with additional data.
 // It is provided for consistency in logging across GKE applications.
 type MsgData struct {
@@ -138,6 +152,10 @@ func NewFmtMsgData(msg string, data ...interface{}) MsgData {
 
 func (l Logger) log(severity logging.Severity, payload interface{}) {
 	l.logPayload(severity, payload)
+}
+
+func (l Logger) LogSync(ctx context.Context, payload logging.Entry) error {
+	return l.logPayloadSync(ctx, payload)
 }
 
 // Default creates a log entry with a Default severity.

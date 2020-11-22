@@ -95,7 +95,7 @@ func ExampleAliveContext_WithLogger() {
 
 	gke.LogEnv(lg)
 	gke.LogMetadata(lg)
-	gke.LogGoEnv(lg)
+	gke.LogGoRuntime(lg)
 
 	gke.Go(func(aliveCtx context.Context) error {
 		<-time.After(time.Second)
