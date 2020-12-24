@@ -25,10 +25,7 @@ import (
 	stdlog "log"
 	"os"
 	"path"
-	"runtime"
 	"runtime/debug"
-
-	logpb "google.golang.org/genproto/googleapis/logging/v2"
 
 	"github.com/ajjensen13/gke/internal/log"
 )
@@ -98,28 +95,13 @@ func (l Logger) StandardLogger(severity logging.Severity) *stdlog.Logger {
 }
 
 func (l Logger) logPayload(severity logging.Severity, payload interface{}) {
-	var sl *logpb.LogEntrySourceLocation
-	var cis [1]uintptr
-	c := runtime.Callers(4, cis[:])
-	if c > 0 {
-		fs := runtime.CallersFrames(cis[:])
-		f, _ := fs.Next()
-		sl = &logpb.LogEntrySourceLocation{File: f.File, Line: int64(f.Line), Function: f.Function}
-	}
-	l.Logger.Log(logging.Entry{Severity: severity, Payload: payload, SourceLocation: sl})
+	entry := logging.Entry{Severity: severity, Payload: payload}
+	log.SetupSourceLocation(&entry, 3)
+	l.Logger.Log(entry)
 }
 
 func (l Logger) logPayloadSync(ctx context.Context, entry logging.Entry) error {
-	if entry.SourceLocation == nil {
-		var cis [1]uintptr
-		c := runtime.Callers(3, cis[:])
-		if c > 0 {
-			fs := runtime.CallersFrames(cis[:])
-			f, _ := fs.Next()
-			entry.SourceLocation = &logpb.LogEntrySourceLocation{File: f.File, Line: int64(f.Line), Function: f.Function}
-		}
-	}
-
+	log.SetupSourceLocation(&entry, 2)
 	return l.Logger.LogSync(ctx, entry)
 }
 

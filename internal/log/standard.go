@@ -54,6 +54,7 @@ type standardLogger struct {
 
 func (s *standardLogger) LogSync(_ context.Context, entry logging.Entry) error {
 	if l, ok := s.bySeverity[entry.Severity]; ok {
+		SetupSourceLocation(&entry, 1)
 		file := path.Base(entry.SourceLocation.File)
 
 		err := l.Output(5, fmt.Sprintf("%s %7s %v:%v %v", s.logId, entry.Severity, file, entry.SourceLocation.Line, entry.Payload))
@@ -104,6 +105,7 @@ func (s *standardLogger) StandardLogger(severity logging.Severity) *log.Logger {
 // StandardLogger implements log.Logger.Log().
 func (s *standardLogger) Log(entry logging.Entry) {
 	if l, ok := s.bySeverity[entry.Severity]; ok {
+		SetupSourceLocation(&entry, 1)
 		file := path.Base(entry.SourceLocation.File)
 
 		_ = l.Output(5, fmt.Sprintf("%s %7s %v:%v %v", s.logId, entry.Severity, file, entry.SourceLocation.Line, entry.Payload))

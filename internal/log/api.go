@@ -20,7 +20,9 @@ package log
 import (
 	"cloud.google.com/go/logging"
 	"context"
+	logpb "google.golang.org/genproto/googleapis/logging/v2"
 	"log"
+	"runtime"
 )
 
 // Client is used to provision new loggers and close underlying connections during shutdown.
@@ -41,4 +43,18 @@ type Logger interface {
 	Flush() error
 	// LogSync logs the Entry synchronously.
 	LogSync(ctx context.Context, entry logging.Entry) error
+}
+
+func SetupSourceLocation(entry *logging.Entry, callDepth int) {
+	if entry.SourceLocation != nil {
+		return
+	}
+
+	var cis [1]uintptr
+	c := runtime.Callers(2+callDepth, cis[:])
+	if c > 0 {
+		fs := runtime.CallersFrames(cis[:])
+		f, _ := fs.Next()
+		entry.SourceLocation = &logpb.LogEntrySourceLocation{File: f.File, Line: int64(f.Line), Function: f.Function}
+	}
 }
