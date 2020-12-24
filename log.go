@@ -96,12 +96,12 @@ func (l Logger) StandardLogger(severity logging.Severity) *stdlog.Logger {
 
 func (l Logger) logPayload(severity logging.Severity, payload interface{}) {
 	entry := logging.Entry{Severity: severity, Payload: payload}
-	log.SetupSourceLocation(&entry, 3)
+	SetupSourceLocation(&entry, 3)
 	l.Logger.Log(entry)
 }
 
 func (l Logger) logPayloadSync(ctx context.Context, entry logging.Entry) error {
-	log.SetupSourceLocation(&entry, 2)
+	SetupSourceLocation(&entry, 2)
 	return l.Logger.LogSync(ctx, entry)
 }
 
@@ -368,4 +368,10 @@ func (l Logger) AlertErr(err error) error {
 // Note: Emergency means one or more systems are unusable.
 func (l Logger) EmergencyErr(err error) error {
 	return l.logErr(logging.Emergency, err)
+}
+
+// SetupSourceLocation sets up the entry.SourceLocation field if it is not already set. If callDepth is 0, then
+// the source location of the caller to SetupSourceLocation will be used. If 1, then the caller of that caller, etc, etc.
+func SetupSourceLocation(entry *logging.Entry, callDepth int) {
+	log.SetupSourceLocation(entry, 1+callDepth)
 }

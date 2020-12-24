@@ -45,6 +45,8 @@ type Logger interface {
 	LogSync(ctx context.Context, entry logging.Entry) error
 }
 
+// SetupSourceLocation sets up the entry.SourceLocation field if it is not already set. If callDepth is 0, then
+// the source location of the caller to SetupSourceLocation will be used. If 1, then the caller of that caller, etc, etc.
 func SetupSourceLocation(entry *logging.Entry, callDepth int) {
 	if entry.SourceLocation != nil {
 		return
