@@ -37,26 +37,22 @@ type MetadataType struct {
 	ProjectID string `json:",omitempty"`
 	// InstanceID comes from the metadata server
 	InstanceID string `json:",omitempty"`
-	// InstanceName comes from the metadata server
-	InstanceName string `json:",omitempty"`
-	// ExternalIP comes from the metadata server
-	ExternalIP string `json:",omitempty"`
-	// InternalIP comes from the metadata server
-	InternalIP string `json:",omitempty"`
 	// Hostname comes from the metadata server
 	Hostname string `json:",omitempty"`
 	// Zone comes from the metadata server
 	Zone string `json:",omitempty"`
-	// InstanceTags comes from the metadata server.
-	InstanceTags []string `json:",omitempty"`
+	// ClusterName comes from the metadata server
+	ClusterName string `json:",omitempty"`
+	// ClusterLocation comes from the metadata server
+	ClusterLocation string `json:",omitempty"`
+	// ClusterUid comes from the metadata server
+	ClusterUid string
 	// InstanceAttributes comes from the metadata server. It is not
 	// included in JSON serialization to prevent sending sensitive data.
-	InstanceAttributes map[string]string `json:"-,omitempty"`
+	InstanceAttributes map[string]string `json:"-"`
 	// ProjectAttributes comes from the metadata server. It is not
 	// included in JSON serialization to prevent sending sensitive data.
-	ProjectAttributes map[string]string `json:"-,omitempty"`
-	// ClusterName comes from /etc/k8info/cluster_name.
-	ClusterName string `json:",omitempty"`
+	ProjectAttributes map[string]string `json:"-"`
 	// PodName comes from /etc/k8info/pod_name.
 	// PodName can be provided by a Downward API volume.
 	PodName string `json:",omitempty"`
@@ -100,27 +96,6 @@ func initMetadata() {
 	}
 	pkgMetadata.InstanceID = iid
 
-	instName, err := metadata.InstanceName()
-	if err != nil {
-		pkgMetadataErr = fmt.Errorf("failed to initialize InstanceName: %w", err)
-		return
-	}
-	pkgMetadata.InstanceName = instName
-
-	exIP, err := metadata.ExternalIP()
-	if err != nil {
-		pkgMetadataErr = fmt.Errorf("failed to initialize ExternalIP: %w", err)
-		return
-	}
-	pkgMetadata.ExternalIP = exIP
-
-	inIP, err := metadata.InternalIP()
-	if err != nil {
-		pkgMetadataErr = fmt.Errorf("failed to initialize InternalIP: %w", err)
-		return
-	}
-	pkgMetadata.InternalIP = inIP
-
 	host, err := metadata.Hostname()
 	if err != nil {
 		pkgMetadataErr = fmt.Errorf("failed to initialize Hostname: %w", err)
@@ -144,19 +119,13 @@ func initMetadata() {
 		pkgMetadata.InstanceAttributes[val] = v
 	}
 
-	instTags, err := metadata.InstanceTags()
-	if err != nil {
-		pkgMetadataErr = fmt.Errorf("failed to initialize InstanceTags: %w", err)
-		return
-	}
-	pkgMetadata.InstanceTags = instTags
-
 	vals, err = metadata.ProjectAttributes()
 	if err != nil {
 		pkgMetadataErr = fmt.Errorf("failed to initialize ProjectAttributes: %w", err)
 		return
 	}
 	pkgMetadata.ProjectAttributes = make(map[string]string, len(vals))
+
 	for _, val := range vals {
 		v, err := metadata.ProjectAttributeValue(val)
 		if err != nil {
@@ -173,11 +142,29 @@ func initMetadata() {
 	}
 	pkgMetadata.Zone = zone
 
-	pkgMetadata.ClusterName, err = readK8InfoValue("cluster_name")
+	clusterLocation, err := metadata.Get("instance/attributes/cluster-location")
 	if err != nil {
-		pkgMetadataErr = fmt.Errorf("failed to initialize ClusterName: %w", err)
 		return
 	}
+	pkgMetadata.ClusterLocation = clusterLocation
+
+	clusterName, err := metadata.Get("instance/attributes/cluster-name")
+	if err != nil {
+		return
+	}
+	pkgMetadata.ClusterName = clusterName
+
+	clusterUid, err := metadata.Get("instance/attributes/cluster-uid")
+	if err != nil {
+		return
+	}
+	pkgMetadata.ClusterUid = clusterUid
+
+	// pkgMetadata.ClusterName, err = readK8InfoValue("cluster_name")
+	// if err != nil {
+	// 	pkgMetadataErr = fmt.Errorf("failed to initialize ClusterName: %w", err)
+	// 	return
+	// }
 
 	pkgMetadata.PodName, err = readK8InfoValue("pod_name")
 	if err != nil {
