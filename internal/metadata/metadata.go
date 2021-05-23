@@ -119,11 +119,7 @@ func initMetadata() {
 		pkgMetadata.InstanceAttributes[val] = v
 	}
 
-	vals, err = metadata.ProjectAttributes()
-	if err != nil {
-		pkgMetadataErr = fmt.Errorf("failed to initialize ProjectAttributes: %w", err)
-		return
-	}
+	vals, _ = metadata.ProjectAttributes()
 	pkgMetadata.ProjectAttributes = make(map[string]string, len(vals))
 
 	for _, val := range vals {
@@ -135,11 +131,7 @@ func initMetadata() {
 		pkgMetadata.ProjectAttributes[val] = v
 	}
 
-	zone, err := metadata.Zone()
-	if err != nil {
-		pkgMetadataErr = fmt.Errorf("failed to initialize Zone: %w", err)
-		return
-	}
+	zone, _ := metadata.Zone()
 	pkgMetadata.Zone = zone
 
 	clusterLocation, err := metadata.Get("instance/attributes/cluster-location")
